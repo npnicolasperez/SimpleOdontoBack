@@ -1,0 +1,260 @@
+package com.simpleodonto.calendario.service;
+
+import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeFlow;
+import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
+import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
+import com.google.api.client.auth.oauth2.Credential;
+import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.services.calendar.Calendar;
+import com.google.api.services.calendar.CalendarScopes;
+import com.google.api.services.calendar.model.*;
+import com.simpleodonto.profesional.domain.Profesional;
+import com.simpleodonto.profesional.repository.ProfesionalRepository;
+import com.simpleodonto.turno.domain.EstadoTurno;
+import com.simpleodonto.turno.domain.Turno;
+import com.simpleodonto.turno.repository.TurnoRepository;
+import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class GoogleCalendarService {
+
+    @Value("${google.client-id}")
+    private String clientId;
+
+    @Value("${google.client-secret}")
+    private String clientSecret;
+
+    @Value("${app.base-url}")
+    private String baseUrl;
+
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    private static final String REDIRECT_URI_PATH = "/api/calendar/callback";
+    private static final String APPLICATION_NAME  = "SimpleOdonto";
+
+    private final ProfesionalRepository profesionalRepository;
+    private final TurnoRepository       turnoRepository;
+
+    // ── OAuth ──────────────────────────────────────────────────────────────
+
+    public String getAuthorizationUrl(Profesional profesional) throws Exception {
+        GoogleAuthorizationCodeFlow flow = buildFlow();
+        return flow.newAuthorizationUrl()
+                .setRedirectUri(baseUrl + REDIRECT_URI_PATH)
+                .setState(String.valueOf(profesional.getId()))
+                .set("login_hint", profesional.getEmail())
+                .build();
+    }
+
+    @Transactional
+    public String handleCallback(String code, Long profesionalId) throws Exception {
+        GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
+                new NetHttpTransport(),
+                GsonFactory.getDefaultInstance(),
+                "https://oauth2.googleapis.com/token",
+                clientId, clientSecret, code,
+                baseUrl + REDIRECT_URI_PATH
+        ).execute();
+
+        Profesional profesional = profesionalRepository.findById(profesionalId)
+                .orElseThrow(() -> new EntityNotFoundException("Profesional no encontrado"));
+
+        profesional.setGoogleCalendarRefreshToken(tokenResponse.getRefreshToken());
+        profesionalRepository.save(profesional);
+
+        try {
+            registrarWebhook(profesional, tokenResponse.getRefreshToken());
+        } catch (Exception e) {
+            log.warn("No se pudo registrar webhook de Google Calendar (normal en entorno local): {}", e.getMessage());
+        }
+
+        return frontendUrl + "?calendarConectado=true";
+    }
+
+    public String getFrontendUrl() { return frontendUrl; }
+
+    public boolean estaConectado(Profesional profesional) {
+        return profesional.getGoogleCalendarRefreshToken() != null
+                && !profesional.getGoogleCalendarRefreshToken().isBlank();
+    }
+
+    // ── Eventos ────────────────────────────────────────────────────────────
+
+    public String crearEvento(Profesional profesional, Turno turno) {
+        if (!estaConectado(profesional)) return null;
+        try {
+            Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
+            Event event = buildEvent(turno);
+            Event created = service.events().insert("primary", event).execute();
+            return created.getId();
+        } catch (Exception e) {
+            log.warn("No se pudo crear evento en Google Calendar: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public void actualizarEvento(Profesional profesional, Turno turno) {
+        if (!estaConectado(profesional) || turno.getGoogleEventId() == null) return;
+        try {
+            Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
+            Event event = buildEvent(turno);
+            service.events().update("primary", turno.getGoogleEventId(), event).execute();
+        } catch (Exception e) {
+            log.warn("No se pudo actualizar evento en Google Calendar: {}", e.getMessage());
+        }
+    }
+
+    public void eliminarEvento(Profesional profesional, String googleEventId) {
+        if (!estaConectado(profesional) || googleEventId == null) return;
+        try {
+            Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
+            service.events().delete("primary", googleEventId).execute();
+        } catch (Exception e) {
+            log.warn("No se pudo eliminar evento en Google Calendar: {}", e.getMessage());
+        }
+    }
+
+    // ── Webhook ────────────────────────────────────────────────────────────
+
+    @Transactional
+    public void procesarWebhook(String channelId, String resourceState) {
+        if ("sync".equals(resourceState)) return;
+
+        profesionalRepository.findByGoogleCalendarChannelId(channelId).ifPresent(profesional -> {
+            try {
+                sincronizarCambios(profesional);
+            } catch (Exception e) {
+                log.error("Error procesando webhook para profesional {}: {}", profesional.getId(), e.getMessage());
+            }
+        });
+    }
+
+    @Transactional
+    protected void sincronizarCambios(Profesional profesional) throws Exception {
+        Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
+        Calendar.Events.List request = service.events().list("primary")
+                .setSingleEvents(true);
+
+        if (profesional.getGoogleCalendarSyncToken() != null) {
+            request.setSyncToken(profesional.getGoogleCalendarSyncToken());
+        } else {
+            request.setTimeMin(new com.google.api.client.util.DateTime(System.currentTimeMillis()));
+        }
+
+        Events events = request.execute();
+
+        for (Event event : events.getItems()) {
+            turnoRepository.findByGoogleEventId(event.getId()).ifPresent(turno -> {
+                if ("cancelled".equals(event.getStatus())) {
+                    turno.setEstado(EstadoTurno.CANCELADO);
+                } else if (event.getStart() != null && event.getStart().getDateTime() != null) {
+                    LocalDateTime nuevaFecha = LocalDateTime.ofInstant(
+                            new Date(event.getStart().getDateTime().getValue()).toInstant(),
+                            ZoneId.systemDefault());
+                    turno.setFechaHora(nuevaFecha);
+                }
+                turnoRepository.save(turno);
+            });
+        }
+
+        profesional.setGoogleCalendarSyncToken(events.getNextSyncToken());
+        profesionalRepository.save(profesional);
+    }
+
+    @Scheduled(cron = "0 0 5 * * *")
+    public void renovarWebhooksProximos() {
+        long limite = System.currentTimeMillis() + (2L * 24 * 60 * 60 * 1000);
+        profesionalRepository.findAll().stream()
+                .filter(p -> p.getGoogleCalendarRefreshToken() != null
+                        && p.getGoogleCalendarWebhookExpiry() != null
+                        && p.getGoogleCalendarWebhookExpiry() < limite)
+                .forEach(p -> {
+                    try {
+                        registrarWebhook(p, p.getGoogleCalendarRefreshToken());
+                    } catch (Exception e) {
+                        log.error("Error renovando webhook para profesional {}: {}", p.getId(), e.getMessage());
+                    }
+                });
+    }
+
+    // ── Internos ───────────────────────────────────────────────────────────
+
+    private void registrarWebhook(Profesional profesional, String refreshToken) throws Exception {
+        Calendar service = buildCalendarClient(refreshToken);
+        String channelId = UUID.randomUUID().toString();
+
+        Channel channel = new Channel()
+                .setId(channelId)
+                .setType("web_hook")
+                .setAddress(baseUrl + "/api/calendar/webhook");
+
+        Channel response = service.events().watch("primary", channel).execute();
+
+        profesional.setGoogleCalendarChannelId(response.getId());
+        profesional.setGoogleCalendarResourceId(response.getResourceId());
+        profesional.setGoogleCalendarWebhookExpiry(response.getExpiration());
+        profesional.setGoogleCalendarSyncToken(null);
+        profesionalRepository.save(profesional);
+    }
+
+    private GoogleAuthorizationCodeFlow buildFlow() throws Exception {
+        return new GoogleAuthorizationCodeFlow.Builder(
+                GoogleNetHttpTransport.newTrustedTransport(),
+                GsonFactory.getDefaultInstance(),
+                clientId, clientSecret,
+                List.of(CalendarScopes.CALENDAR)
+        ).setAccessType("offline").setApprovalPrompt("force").build();
+    }
+
+    @SuppressWarnings("deprecation")
+    private Calendar buildCalendarClient(String refreshToken) throws Exception {
+        NetHttpTransport transport = GoogleNetHttpTransport.newTrustedTransport();
+        GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
+
+        GoogleCredential credential = new GoogleCredential.Builder()
+                .setTransport(transport)
+                .setJsonFactory(jsonFactory)
+                .setClientSecrets(clientId, clientSecret)
+                .build()
+                .setRefreshToken(refreshToken);
+        credential.refreshToken();
+
+        return new Calendar.Builder(transport, jsonFactory, credential)
+                .setApplicationName(APPLICATION_NAME)
+                .build();
+    }
+
+    private Event buildEvent(Turno turno) {
+        String titulo = turno.getPaciente() != null
+                ? turno.getPaciente().getNombre() + " " + turno.getPaciente().getApellido()
+                : (turno.getNombrePacienteLibre() != null ? turno.getNombrePacienteLibre() : "Turno");
+
+        ZoneId zone = ZoneId.systemDefault();
+        long startMs = turno.getFechaHora().atZone(zone).toInstant().toEpochMilli();
+        long endMs   = turno.getFechaHora().plusMinutes(turno.getDuracionMinutos()).atZone(zone).toInstant().toEpochMilli();
+
+        return new Event()
+                .setSummary(titulo)
+                .setDescription(turno.getMotivo())
+                .setStart(new EventDateTime().setDateTime(new com.google.api.client.util.DateTime(startMs)))
+                .setEnd(  new EventDateTime().setDateTime(new com.google.api.client.util.DateTime(endMs)));
+    }
+}

@@ -46,6 +46,21 @@ public class Profesional extends BaseEntity implements UserDetails {
     @Builder.Default
     private boolean test = false;
 
+    @Column(name = "google_calendar_refresh_token", length = 512)
+    private String googleCalendarRefreshToken;
+
+    @Column(name = "google_calendar_channel_id")
+    private String googleCalendarChannelId;
+
+    @Column(name = "google_calendar_resource_id")
+    private String googleCalendarResourceId;
+
+    @Column(name = "google_calendar_webhook_expiry")
+    private Long googleCalendarWebhookExpiry;
+
+    @Column(name = "google_calendar_sync_token")
+    private String googleCalendarSyncToken;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_PROFESIONAL"));

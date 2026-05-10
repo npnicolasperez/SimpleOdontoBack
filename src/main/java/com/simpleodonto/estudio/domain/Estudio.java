@@ -1,4 +1,4 @@
-package com.simpleodonto.analisis.domain;
+package com.simpleodonto.estudio.domain;
 
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -13,13 +13,13 @@ import java.util.List;
 import java.util.Map;
 
 @Entity
-@Table(name = "analisis")
+@Table(name = "estudios")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class Analisis extends BaseEntity {
+public class Estudio extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profesional_id", nullable = false)
@@ -45,4 +45,7 @@ public class Analisis extends BaseEntity {
 
     @Column(nullable = false)
     private Double escala;
+
+    @Column(columnDefinition = "text")
+    private String descripcion;
 }

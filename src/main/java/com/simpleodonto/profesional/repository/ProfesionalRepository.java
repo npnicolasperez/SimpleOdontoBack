@@ -9,4 +9,5 @@ public interface ProfesionalRepository extends JpaRepository<Profesional, Long> 
     Optional<Profesional> findByEmail(String email);
     Optional<Profesional> findByGoogleId(String googleId);
     boolean existsByEmail(String email);
+    java.util.Optional<Profesional> findByGoogleCalendarChannelId(String channelId);
 }

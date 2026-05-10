@@ -1,8 +1,8 @@
-package com.simpleodonto.analisis.dto;
+package com.simpleodonto.estudio.dto;
 
 import java.time.LocalDateTime;
 
-public record AnalisisResponse(
+public record EstudioResponse(
         Long          id,
         String        nombre,
         String        imagenTipo,
