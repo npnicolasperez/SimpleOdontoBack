@@ -48,7 +48,7 @@ public class GoogleCalendarService {
     private String frontendUrl;
 
     private static final String REDIRECT_URI_PATH = "/api/calendar/callback";
-    private static final String APPLICATION_NAME  = "SimpleOdonto";
+    private static final String APPLICATION_NAME  = "HelloDoc";
 
     private final ProfesionalRepository profesionalRepository;
     private final TurnoRepository       turnoRepository;
