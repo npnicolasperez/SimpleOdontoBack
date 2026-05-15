@@ -113,7 +113,7 @@ public class PacienteService {
         long nuevos   = nuevosF.join();
         long conTurno = conTurnoF.join();
 
-        return new PacienteStatsResponse(total, nuevos, conTurno, Math.max(0, total - conTurno));
+        return new PacienteStatsResponse(total, nuevos, conTurno);
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
