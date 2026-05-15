@@ -7,9 +7,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface PacienteRepository extends JpaRepository<Paciente, Long> {
+
+    long countByProfesionalId(Long profesionalId);
+
+    @Query("SELECT COUNT(p) FROM Paciente p WHERE p.profesional.id = :profId AND p.dateCreated >= :desde")
+    long countNuevosDesde(@Param("profId") Long profId, @Param("desde") LocalDateTime desde);
 
     Page<Paciente> findByProfesionalId(Long profesionalId, Pageable pageable);
 

@@ -6,6 +6,7 @@ import com.simpleodonto.paciente.dto.OdontogramaRequest;
 import com.simpleodonto.paciente.dto.OdontogramaResponse;
 import com.simpleodonto.paciente.dto.PacienteRequest;
 import com.simpleodonto.paciente.dto.PacienteResponse;
+import com.simpleodonto.paciente.dto.PacienteStatsResponse;
 import com.simpleodonto.paciente.repository.OdontogramaRepository;
 import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ public class PacienteService {
 
     private final PacienteRepository    pacienteRepository;
     private final OdontogramaRepository odontogramaRepository;
+    private final PacienteStatsService  pacienteStatsService;
 
     public Page<PacienteResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
         if (buscar != null && !buscar.isBlank()) {
@@ -95,6 +98,22 @@ public class PacienteService {
         Odontograma od = findOdontograma(pacienteId);
         od.setSuperficies(req.superficies());
         return toOdontogramaResponse(odontogramaRepository.save(od));
+    }
+
+    public PacienteStatsResponse getStats(Profesional profesional) {
+        Long id = profesional.getId();
+
+        CompletableFuture<Long> totalF    = pacienteStatsService.contarTotal(id);
+        CompletableFuture<Long> nuevosF   = pacienteStatsService.contarNuevosEsteMes(id);
+        CompletableFuture<Long> conTurnoF = pacienteStatsService.contarConTurnoProximo(id);
+
+        CompletableFuture.allOf(totalF, nuevosF, conTurnoF).join();
+
+        long total    = totalF.join();
+        long nuevos   = nuevosF.join();
+        long conTurno = conTurnoF.join();
+
+        return new PacienteStatsResponse(total, nuevos, conTurno, Math.max(0, total - conTurno));
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────

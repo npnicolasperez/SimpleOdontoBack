@@ -4,6 +4,7 @@ import com.simpleodonto.paciente.dto.OdontogramaRequest;
 import com.simpleodonto.paciente.dto.OdontogramaResponse;
 import com.simpleodonto.paciente.dto.PacienteRequest;
 import com.simpleodonto.paciente.dto.PacienteResponse;
+import com.simpleodonto.paciente.dto.PacienteStatsResponse;
 import com.simpleodonto.paciente.service.PacienteService;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
@@ -25,6 +26,12 @@ public class PacienteController {
 
     private final PacienteService pacienteService;
     private final TokenService    tokenService;
+
+    @GetMapping("/stats")
+    public PacienteStatsResponse stats(HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return pacienteService.getStats(profesional);
+    }
 
     @GetMapping
     public Page<PacienteResponse> listar(
