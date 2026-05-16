@@ -9,6 +9,7 @@ public record ConsultaRequest(
         @NotNull Long      pacienteId,
         Long               consultorioId,
         String             motivoConsulta,
+        String             diagnostico,
         String             practicaRealizada,
         @NotNull BigDecimal monto,
         @NotNull TipoPago   tipoPago

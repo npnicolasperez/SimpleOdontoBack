@@ -60,6 +60,7 @@ public class ConsultaService {
                 .profesional(profesional)
                 .consultorio(consultorio)
                 .motivoConsulta(req.motivoConsulta())
+                .diagnostico(req.diagnostico())
                 .practicaRealizada(req.practicaRealizada())
                 .monto(req.monto())
                 .tipoPago(req.tipoPago())
@@ -78,6 +79,7 @@ public class ConsultaService {
                 c.getConsultorio() != null ? c.getConsultorio().getId()     : null,
                 c.getConsultorio() != null ? c.getConsultorio().getNombre() : null,
                 c.getMotivoConsulta(),
+                c.getDiagnostico(),
                 c.getPracticaRealizada(),
                 c.getMonto(),
                 c.getTipoPago(),

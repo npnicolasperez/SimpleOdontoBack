@@ -52,6 +52,14 @@ public class PacienteService {
                 .direccion(req.direccion())
                 .obraSocial(req.obraSocial())
                 .nroAfiliado(req.nroAfiliado())
+                .ocupacion(req.ocupacion())
+                .grupoSanguineo(req.grupoSanguineo())
+                .alergias(req.alergias())
+                .medicaciones(req.medicaciones())
+                .antecedentes(req.antecedentes())
+                .antecedentesFamiliares(req.antecedentesFamiliares())
+                .peso(req.peso())
+                .altura(req.altura())
                 .build();
         paciente = pacienteRepository.save(paciente);
 
@@ -79,6 +87,14 @@ public class PacienteService {
         p.setDireccion(req.direccion());
         p.setObraSocial(req.obraSocial());
         p.setNroAfiliado(req.nroAfiliado());
+        p.setOcupacion(req.ocupacion());
+        p.setGrupoSanguineo(req.grupoSanguineo());
+        p.setAlergias(req.alergias());
+        p.setMedicaciones(req.medicaciones());
+        p.setAntecedentes(req.antecedentes());
+        p.setAntecedentesFamiliares(req.antecedentesFamiliares());
+        p.setPeso(req.peso());
+        p.setAltura(req.altura());
         return toResponse(pacienteRepository.save(p));
     }
 
@@ -133,6 +149,9 @@ public class PacienteService {
                 p.getId(), p.getNombre(), p.getApellido(), p.getDni(),
                 p.getFechaNac(), p.getTelefono(), p.getEmail(), p.getDireccion(),
                 p.getObraSocial(), p.getNroAfiliado(),
+                p.getOcupacion(), p.getGrupoSanguineo(),
+                p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),
+                p.getAntecedentesFamiliares(), p.getPeso(), p.getAltura(),
                 p.getDateCreated(), p.getLastUpdated()
         );
     }

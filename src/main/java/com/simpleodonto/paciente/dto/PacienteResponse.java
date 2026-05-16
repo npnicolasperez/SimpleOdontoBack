@@ -14,6 +14,14 @@ public record PacienteResponse(
         String        direccion,
         String        obraSocial,
         String        nroAfiliado,
+        String        ocupacion,
+        String        grupoSanguineo,
+        String        alergias,
+        String        medicaciones,
+        String        antecedentes,
+        String        antecedentesFamiliares,
+        Double        peso,
+        Integer       altura,
         LocalDateTime dateCreated,
         LocalDateTime lastUpdated
 ) {}

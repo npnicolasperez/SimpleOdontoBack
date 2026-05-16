@@ -33,6 +33,9 @@ public class Consulta extends BaseEntity {
     @Column(name = "motivo_consulta", columnDefinition = "TEXT")
     private String motivoConsulta;
 
+    @Column(columnDefinition = "TEXT")
+    private String diagnostico;
+
     @Column(name = "practica_realizada", columnDefinition = "TEXT")
     private String practicaRealizada;
 

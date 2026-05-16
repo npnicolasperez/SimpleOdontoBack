@@ -14,6 +14,7 @@ public record ConsultaResponse(
         Long          consultorioId,
         String        consultorioNombre,
         String        motivoConsulta,
+        String        diagnostico,
         String        practicaRealizada,
         BigDecimal    monto,
         TipoPago      tipoPago,

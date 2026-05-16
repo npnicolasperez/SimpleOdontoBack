@@ -40,4 +40,24 @@ public class Paciente extends BaseEntity {
 
     @Column(name = "nro_afiliado")
     private String nroAfiliado;
+
+    private String ocupacion;
+
+    @Column(name = "grupo_sanguineo")
+    private String grupoSanguineo;
+
+    @Column(columnDefinition = "TEXT")
+    private String alergias;
+
+    @Column(columnDefinition = "TEXT")
+    private String medicaciones;
+
+    @Column(columnDefinition = "TEXT")
+    private String antecedentes;
+
+    @Column(name = "antecedentes_familiares", columnDefinition = "TEXT")
+    private String antecedentesFamiliares;
+
+    private Double peso;
+    private Integer altura;
 }

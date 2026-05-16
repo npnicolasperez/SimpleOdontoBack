@@ -5,5 +5,6 @@ public record AuthResponse(
         String email,
         String nombre,
         String apellido,
-        boolean perfilCompleto
+        boolean perfilCompleto,
+        String especialidadNombre
 ) {}
