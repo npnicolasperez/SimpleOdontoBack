@@ -30,7 +30,6 @@ public class ConsultorioService {
         Consultorio consultorio = Consultorio.builder()
                 .profesional(profesional)
                 .nombre(req.nombre())
-                .direccion(req.direccion())
                 .build();
         return toResponse(consultorioRepository.save(consultorio));
     }
@@ -44,7 +43,7 @@ public class ConsultorioService {
 
     private ConsultorioResponse toResponse(Consultorio c) {
         return new ConsultorioResponse(
-                c.getId(), c.getNombre(), c.getDireccion(),
+                c.getId(), c.getNombre(),
                 c.getDateCreated(), c.getLastUpdated()
         );
     }

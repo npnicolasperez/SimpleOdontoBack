@@ -1,4 +1,4 @@
-package com.simpleodonto.consultorio.domain;
+package com.simpleodonto.finanzas.domain;
 
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.BaseEntity;
@@ -6,13 +6,13 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
-@Table(name = "consultorio")
+@Table(name = "medio_pago")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class Consultorio extends BaseEntity {
+public class MedioPago extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "profesional_id", nullable = false)

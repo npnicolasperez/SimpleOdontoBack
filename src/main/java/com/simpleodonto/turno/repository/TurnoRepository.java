@@ -17,12 +17,10 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
         WHERE t.profesional.id = :profId
           AND t.paciente IS NOT NULL
           AND t.fechaHora >= :ahora
-          AND t.estado <> :cancelado
         """)
     long countPacientesConTurnoProximo(
-            @Param("profId")    Long          profId,
-            @Param("ahora")     LocalDateTime ahora,
-            @Param("cancelado") EstadoTurno   cancelado
+            @Param("profId") Long          profId,
+            @Param("ahora")  LocalDateTime ahora
     );
     List<Turno> findByProfesionalIdAndFechaHoraBetweenOrderByFechaHora(Long profesionalId, LocalDateTime desde, LocalDateTime hasta);
     List<Turno> findByProfesionalIdAndPacienteIdOrderByFechaHoraDesc(Long profesionalId, Long pacienteId);

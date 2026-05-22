@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -52,6 +53,8 @@ public class PacienteService {
                 .direccion(req.direccion())
                 .obraSocial(req.obraSocial())
                 .nroAfiliado(req.nroAfiliado())
+                .planObraSocial(req.planObraSocial())
+                .titularObraSocial(req.titularObraSocial())
                 .ocupacion(req.ocupacion())
                 .grupoSanguineo(req.grupoSanguineo())
                 .alergias(req.alergias())
@@ -87,6 +90,8 @@ public class PacienteService {
         p.setDireccion(req.direccion());
         p.setObraSocial(req.obraSocial());
         p.setNroAfiliado(req.nroAfiliado());
+        p.setPlanObraSocial(req.planObraSocial());
+        p.setTitularObraSocial(req.titularObraSocial());
         p.setOcupacion(req.ocupacion());
         p.setGrupoSanguineo(req.grupoSanguineo());
         p.setAlergias(req.alergias());
@@ -101,6 +106,19 @@ public class PacienteService {
     @Transactional
     public void eliminar(Long id, Profesional profesional) {
         pacienteRepository.delete(findOwned(id, profesional));
+    }
+
+    public List<OdontogramaResponse> listarOdontogramas(Long pacienteId, Profesional profesional) {
+        findOwned(pacienteId, profesional);
+        return odontogramaRepository.findByPacienteIdOrderByDateCreatedDesc(pacienteId)
+                .stream().map(this::toOdontogramaResponse).toList();
+    }
+
+    @Transactional
+    public OdontogramaResponse crearNuevoOdontograma(Long pacienteId, Profesional profesional) {
+        Paciente paciente = findOwned(pacienteId, profesional);
+        return toOdontogramaResponse(odontogramaRepository.save(
+                Odontograma.builder().paciente(paciente).superficies(new HashMap<>()).build()));
     }
 
     public OdontogramaResponse obtenerOdontograma(Long pacienteId, Profesional profesional) {
@@ -149,6 +167,7 @@ public class PacienteService {
                 p.getId(), p.getNombre(), p.getApellido(), p.getDni(),
                 p.getFechaNac(), p.getTelefono(), p.getEmail(), p.getDireccion(),
                 p.getObraSocial(), p.getNroAfiliado(),
+                p.getPlanObraSocial(), p.getTitularObraSocial(),
                 p.getOcupacion(), p.getGrupoSanguineo(),
                 p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),
                 p.getAntecedentesFamiliares(), p.getPeso(), p.getAltura(),

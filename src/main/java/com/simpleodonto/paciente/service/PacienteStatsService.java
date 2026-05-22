@@ -1,7 +1,6 @@
 package com.simpleodonto.paciente.service;
 
 import com.simpleodonto.paciente.repository.PacienteRepository;
-import com.simpleodonto.turno.domain.EstadoTurno;
 import com.simpleodonto.turno.repository.TurnoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Async;
@@ -39,6 +38,6 @@ public class PacienteStatsService {
     public CompletableFuture<Long> contarConTurnoProximo(Long profesionalId) {
         return CompletableFuture.completedFuture(
                 turnoRepository.countPacientesConTurnoProximo(
-                        profesionalId, LocalDateTime.now(), EstadoTurno.CANCELADO));
+                        profesionalId, LocalDateTime.now()));
     }
 }

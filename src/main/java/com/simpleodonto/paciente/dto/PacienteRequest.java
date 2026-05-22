@@ -14,6 +14,8 @@ public record PacienteRequest(
         String direccion,
         String obraSocial,
         String nroAfiliado,
+        String planObraSocial,
+        String titularObraSocial,
         String ocupacion,
         String grupoSanguineo,
         String alergias,

@@ -13,7 +13,6 @@ import com.google.api.services.calendar.CalendarScopes;
 import com.google.api.services.calendar.model.*;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.profesional.repository.ProfesionalRepository;
-import com.simpleodonto.turno.domain.EstadoTurno;
 import com.simpleodonto.turno.domain.Turno;
 import com.simpleodonto.turno.repository.TurnoRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -46,6 +45,12 @@ public class GoogleCalendarService {
 
     @Value("${app.frontend-url}")
     private String frontendUrl;
+
+    @jakarta.annotation.PostConstruct
+    private void trimUrls() {
+        baseUrl    = baseUrl.trim();
+        frontendUrl = frontendUrl.trim();
+    }
 
     private static final String REDIRECT_URI_PATH = "/api/calendar/callback";
     private static final String APPLICATION_NAME  = "HelloDoc";
@@ -106,7 +111,7 @@ public class GoogleCalendarService {
             Event created = service.events().insert("primary", event).execute();
             return created.getId();
         } catch (Exception e) {
-            log.warn("No se pudo crear evento en Google Calendar: {}", e.getMessage());
+            manejarExcepcionToken(e, profesional);
             return null;
         }
     }
@@ -118,7 +123,7 @@ public class GoogleCalendarService {
             Event event = buildEvent(turno);
             service.events().update("primary", turno.getGoogleEventId(), event).execute();
         } catch (Exception e) {
-            log.warn("No se pudo actualizar evento en Google Calendar: {}", e.getMessage());
+            manejarExcepcionToken(e, profesional);
         }
     }
 
@@ -128,7 +133,27 @@ public class GoogleCalendarService {
             Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
             service.events().delete("primary", googleEventId).execute();
         } catch (Exception e) {
-            log.warn("No se pudo eliminar evento en Google Calendar: {}", e.getMessage());
+            manejarExcepcionToken(e, profesional);
+        }
+    }
+
+    @Transactional
+    public void desconectar(Profesional profesional) {
+        profesional.setGoogleCalendarRefreshToken(null);
+        profesional.setGoogleCalendarChannelId(null);
+        profesional.setGoogleCalendarResourceId(null);
+        profesional.setGoogleCalendarSyncToken(null);
+        profesional.setGoogleCalendarWebhookExpiry(null);
+        profesionalRepository.save(profesional);
+    }
+
+    private void manejarExcepcionToken(Exception e, Profesional profesional) {
+        String msg = e.getMessage() != null ? e.getMessage() : "";
+        if (msg.contains("invalid_grant") || msg.contains("Token has been expired or revoked")) {
+            log.warn("Token de Google Calendar expirado o revocado para profesional {}. Se desconecta automáticamente.", profesional.getId());
+            desconectar(profesional);
+        } else {
+            log.warn("Error con Google Calendar para profesional {}: {}", profesional.getId(), msg);
         }
     }
 
@@ -164,14 +189,14 @@ public class GoogleCalendarService {
         for (Event event : events.getItems()) {
             turnoRepository.findByGoogleEventId(event.getId()).ifPresent(turno -> {
                 if ("cancelled".equals(event.getStatus())) {
-                    turno.setEstado(EstadoTurno.CANCELADO);
+                    turnoRepository.delete(turno);
                 } else if (event.getStart() != null && event.getStart().getDateTime() != null) {
                     LocalDateTime nuevaFecha = LocalDateTime.ofInstant(
                             new Date(event.getStart().getDateTime().getValue()).toInstant(),
                             ZoneId.systemDefault());
                     turno.setFechaHora(nuevaFecha);
+                    turnoRepository.save(turno);
                 }
-                turnoRepository.save(turno);
             });
         }
 

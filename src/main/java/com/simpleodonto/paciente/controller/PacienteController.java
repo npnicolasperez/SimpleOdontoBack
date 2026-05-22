@@ -76,6 +76,21 @@ public class PacienteController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/{id}/odontogramas")
+    public java.util.List<OdontogramaResponse> listarOdontogramas(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        return pacienteService.listarOdontogramas(id, tokenService.resolve(request));
+    }
+
+    @PostMapping("/{id}/odontogramas")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OdontogramaResponse crearNuevoOdontograma(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        return pacienteService.crearNuevoOdontograma(id, tokenService.resolve(request));
+    }
+
     @GetMapping("/{id}/odontograma")
     public OdontogramaResponse obtenerOdontograma(
             @PathVariable Long id,

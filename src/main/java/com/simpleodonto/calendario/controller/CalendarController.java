@@ -60,4 +60,11 @@ public class CalendarController {
         Profesional profesional = tokenService.resolve(request);
         return Map.of("conectado", googleCalendarService.estaConectado(profesional));
     }
+
+    @DeleteMapping("/desconectar")
+    public ResponseEntity<Void> desconectar(HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        googleCalendarService.desconectar(profesional);
+        return ResponseEntity.noContent().build();
+    }
 }

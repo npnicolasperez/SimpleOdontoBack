@@ -4,13 +4,14 @@ import com.simpleodonto.consulta.domain.TipoPago;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 public record ConsultaRequest(
-        @NotNull Long      pacienteId,
-        Long               consultorioId,
-        String             motivoConsulta,
-        String             diagnostico,
-        String             practicaRealizada,
-        @NotNull BigDecimal monto,
-        @NotNull TipoPago   tipoPago
+        @NotNull Long pacienteId,
+        Long          consultorioId,
+        LocalDate     fecha,
+        String        descripcion,
+        BigDecimal    monto,
+        TipoPago      tipoPago,
+        Long          medioPagoId
 ) {}

@@ -41,6 +41,12 @@ public class Paciente extends BaseEntity {
     @Column(name = "nro_afiliado")
     private String nroAfiliado;
 
+    @Column(name = "plan_obra_social")
+    private String planObraSocial;
+
+    @Column(name = "titular_obra_social")
+    private String titularObraSocial;
+
     private String ocupacion;
 
     @Column(name = "grupo_sanguineo")
