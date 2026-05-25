@@ -35,7 +35,7 @@ public class AuthController {
 
     @PutMapping("/completar-perfil")
     public ResponseEntity<AuthResponse> completarPerfil(
-            @RequestBody CompletarPerfilRequest req,
+            @Valid @RequestBody CompletarPerfilRequest req,
             HttpServletRequest request) {
         var profesional = tokenService.resolve(request);
         return ResponseEntity.ok(authService.completarPerfil(req, profesional));

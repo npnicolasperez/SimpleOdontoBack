@@ -31,4 +31,5 @@ public interface PacienteRepository extends JpaRepository<Paciente, Long> {
                           Pageable pageable);
 
     Optional<Paciente> findByIdAndProfesionalId(Long id, Long profesionalId);
+    boolean existsByObraSocialId(Long obraSocialId);
 }

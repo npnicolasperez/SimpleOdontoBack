@@ -8,6 +8,10 @@ import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -25,8 +29,11 @@ public class EstudioController {
     private final TokenService   tokenService;
 
     @GetMapping
-    public List<EstudioResponse> listar(HttpServletRequest request) {
-        return estudioService.listar(tokenService.resolve(request));
+    public Page<EstudioResponse> listar(
+            @RequestParam(required = false) String buscar,
+            @PageableDefault(size = 30, sort = "lastUpdated", direction = Sort.Direction.DESC) Pageable pageable,
+            HttpServletRequest request) {
+        return estudioService.listar(buscar, pageable, tokenService.resolve(request));
     }
 
     @GetMapping("/paciente/{pacienteId}")

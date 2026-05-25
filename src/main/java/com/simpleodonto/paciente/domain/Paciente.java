@@ -1,5 +1,6 @@
 package com.simpleodonto.paciente.domain;
 
+import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.BaseEntity;
 import jakarta.persistence.*;
@@ -35,8 +36,9 @@ public class Paciente extends BaseEntity {
     private String email;
     private String direccion;
 
-    @Column(name = "obra_social")
-    private String obraSocial;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "obra_social_id")
+    private ObraSocial obraSocial;
 
     @Column(name = "nro_afiliado")
     private String nroAfiliado;

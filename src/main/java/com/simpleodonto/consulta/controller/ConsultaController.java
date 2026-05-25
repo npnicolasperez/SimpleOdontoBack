@@ -10,6 +10,10 @@ import com.simpleodonto.shared.security.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,9 +30,12 @@ public class ConsultaController {
     private final TokenService    tokenService;
 
     @GetMapping
-    public List<ConsultaResponse> listar(HttpServletRequest request) {
+    public Page<ConsultaResponse> listar(
+            @RequestParam(required = false) String buscar,
+            @PageableDefault(size = 30, sort = "dateCreated", direction = Sort.Direction.DESC) Pageable pageable,
+            HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
-        return consultaService.listarUltimas(profesional);
+        return consultaService.listar(buscar, pageable, profesional);
     }
 
     @GetMapping("/paciente/{pacienteId}")
@@ -50,7 +57,7 @@ public class ConsultaController {
     @PutMapping("/{id}")
     public ConsultaResponse actualizar(
             @PathVariable Long id,
-            @RequestBody ConsultaUpdateRequest req,
+            @Valid @RequestBody ConsultaUpdateRequest req,
             HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
         return consultaService.actualizar(id, req, profesional);

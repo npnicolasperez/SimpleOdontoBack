@@ -1,5 +1,7 @@
 package com.simpleodonto.paciente.service;
 
+import com.simpleodonto.obrasocial.domain.ObraSocial;
+import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Odontograma;
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.paciente.dto.OdontogramaRequest;
@@ -28,6 +30,7 @@ public class PacienteService {
     private final PacienteRepository    pacienteRepository;
     private final OdontogramaRepository odontogramaRepository;
     private final PacienteStatsService  pacienteStatsService;
+    private final ObraSocialRepository  obraSocialRepository;
 
     public Page<PacienteResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
         if (buscar != null && !buscar.isBlank()) {
@@ -51,7 +54,7 @@ public class PacienteService {
                 .telefono(req.telefono())
                 .email(req.email())
                 .direccion(req.direccion())
-                .obraSocial(req.obraSocial())
+                .obraSocial(resolverObraSocial(req.obraSocialId(), profesional))
                 .nroAfiliado(req.nroAfiliado())
                 .planObraSocial(req.planObraSocial())
                 .titularObraSocial(req.titularObraSocial())
@@ -88,7 +91,7 @@ public class PacienteService {
         p.setTelefono(req.telefono());
         p.setEmail(req.email());
         p.setDireccion(req.direccion());
-        p.setObraSocial(req.obraSocial());
+        p.setObraSocial(resolverObraSocial(req.obraSocialId(), profesional));
         p.setNroAfiliado(req.nroAfiliado());
         p.setPlanObraSocial(req.planObraSocial());
         p.setTitularObraSocial(req.titularObraSocial());
@@ -143,14 +146,16 @@ public class PacienteService {
 
         CompletableFuture.allOf(totalF, nuevosF, conTurnoF).join();
 
-        long total    = totalF.join();
-        long nuevos   = nuevosF.join();
-        long conTurno = conTurnoF.join();
-
-        return new PacienteStatsResponse(total, nuevos, conTurno);
+        return new PacienteStatsResponse(totalF.join(), nuevosF.join(), conTurnoF.join());
     }
 
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    private ObraSocial resolverObraSocial(Long obraSocialId, Profesional profesional) {
+        if (obraSocialId == null) return null;
+        return obraSocialRepository.findByIdAndProfesionalId(obraSocialId, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
+    }
 
     private Paciente findOwned(Long id, Profesional profesional) {
         return pacienteRepository.findByIdAndProfesionalId(id, profesional.getId())
@@ -163,10 +168,13 @@ public class PacienteService {
     }
 
     private PacienteResponse toResponse(Paciente p) {
+        ObraSocial os = p.getObraSocial();
         return new PacienteResponse(
                 p.getId(), p.getNombre(), p.getApellido(), p.getDni(),
                 p.getFechaNac(), p.getTelefono(), p.getEmail(), p.getDireccion(),
-                p.getObraSocial(), p.getNroAfiliado(),
+                os != null ? os.getId()     : null,
+                os != null ? os.getNombre() : null,
+                p.getNroAfiliado(),
                 p.getPlanObraSocial(), p.getTitularObraSocial(),
                 p.getOcupacion(), p.getGrupoSanguineo(),
                 p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),

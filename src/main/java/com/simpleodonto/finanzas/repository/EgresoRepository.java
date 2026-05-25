@@ -10,6 +10,8 @@ import java.util.List;
 
 public interface EgresoRepository extends JpaRepository<Egreso, Long> {
 
+    boolean existsByConsultorioId(Long consultorioId);
+
     @Query("SELECT e FROM Egreso e " +
            "WHERE e.profesional.id = :profesionalId " +
            "AND e.fecha >= :desde AND e.fecha < :hasta " +
@@ -18,4 +20,14 @@ public interface EgresoRepository extends JpaRepository<Egreso, Long> {
             @Param("profesionalId") Long profesionalId,
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta);
+
+    @Query("SELECT e FROM Egreso e " +
+           "WHERE e.profesional.id = :profesionalId " +
+           "AND e.fecha >= :desde AND e.fecha < :hasta " +
+           "AND LOWER(e.descripcion) LIKE LOWER(CONCAT('%', :buscar, '%'))")
+    List<Egreso> findByProfesionalIdAndMesAndBuscar(
+            @Param("profesionalId") Long profesionalId,
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta,
+            @Param("buscar") String buscar);
 }

@@ -6,6 +6,7 @@ import com.simpleodonto.finanzas.service.EgresoService;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -33,7 +34,7 @@ public class EgresoController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public EgresoResponse crear(
-            @RequestBody EgresoRequest body,
+            @Valid @RequestBody EgresoRequest body,
             HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
         return egresoService.crear(profesional, body);

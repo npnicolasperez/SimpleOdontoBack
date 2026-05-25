@@ -4,6 +4,7 @@ import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.obrasocial.dto.ObraSocialRequest;
 import com.simpleodonto.obrasocial.dto.ObraSocialResponse;
 import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
+import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.util.List;
 public class ObraSocialService {
 
     private final ObraSocialRepository obraSocialRepository;
+    private final PacienteRepository   pacienteRepository;
 
     public List<ObraSocialResponse> listar(Profesional profesional) {
         return obraSocialRepository.findByProfesionalId(profesional.getId())
@@ -38,6 +40,8 @@ public class ObraSocialService {
     public void eliminar(Long id, Profesional profesional) {
         ObraSocial obraSocial = obraSocialRepository.findByIdAndProfesionalId(id, profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
+        if (pacienteRepository.existsByObraSocialId(id))
+            throw new IllegalStateException("No se puede eliminar la obra social porque tiene pacientes asociados.");
         obraSocialRepository.delete(obraSocial);
     }
 

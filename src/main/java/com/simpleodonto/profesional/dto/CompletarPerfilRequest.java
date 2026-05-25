@@ -1,3 +1,9 @@
 package com.simpleodonto.profesional.dto;
 
-public record CompletarPerfilRequest(Long especialidadId, String matricula) {}
+import jakarta.validation.constraints.NotNull;
+
+public record CompletarPerfilRequest(
+        @NotNull(message = "La especialidad es obligatoria")
+        Long especialidadId,
+        String matricula
+) {}

@@ -1,6 +1,8 @@
 package com.simpleodonto.shared.exception;
 
 import jakarta.persistence.EntityNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -13,6 +15,8 @@ import java.util.stream.Collectors;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleNotFound(EntityNotFoundException e) {
@@ -33,8 +37,8 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, String>> handleUnauthorized(IllegalStateException e) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+    public ResponseEntity<Map<String, String>> handleConflictState(IllegalStateException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", e.getMessage()));
     }
 
@@ -47,5 +51,12 @@ public class GlobalExceptionHandler {
                         (a, b) -> a
                 ));
         return ResponseEntity.badRequest().body(Map.of("errors", errors));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, String>> handleGeneric(Exception e) {
+        log.error("Error inesperado", e);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("error", "Error interno del servidor"));
     }
 }

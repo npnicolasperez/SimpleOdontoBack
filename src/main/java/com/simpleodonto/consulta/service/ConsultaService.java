@@ -17,7 +17,9 @@ import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -49,12 +51,11 @@ public class ConsultaService {
                 .toList();
     }
 
-    public List<ConsultaResponse> listarUltimas(Profesional profesional) {
-        var pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "dateCreated"));
-        return consultaRepository.findByProfesionalId(profesional.getId(), pageable)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    public Page<ConsultaResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
+        Page<Consulta> page = (buscar != null && !buscar.isBlank())
+                ? consultaRepository.buscar(profesional.getId(), buscar, pageable)
+                : consultaRepository.findByProfesionalId(profesional.getId(), pageable);
+        return page.map(this::toResponse);
     }
 
     @Transactional

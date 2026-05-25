@@ -10,6 +10,9 @@ import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +27,11 @@ public class EstudioService {
     private final EstudioRepository estudioRepository;
     private final PacienteRepository pacienteRepository;
 
-    public List<EstudioResponse> listar(Profesional profesional) {
-        return estudioRepository.findByProfesionalIdOrderByLastUpdatedDesc(profesional.getId())
-                .stream().map(this::toResponse).toList();
+    public Page<EstudioResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
+        Page<Estudio> page = (buscar != null && !buscar.isBlank())
+                ? estudioRepository.buscar(profesional.getId(), buscar, pageable)
+                : estudioRepository.findByProfesionalId(profesional.getId(), pageable);
+        return page.map(this::toResponse);
     }
 
     public List<EstudioResponse> listarPorPaciente(Long pacienteId, Profesional profesional) {

@@ -32,9 +32,7 @@ public class EgresoService {
 
     @Transactional
     public EgresoResponse crear(Profesional profesional, EgresoRequest req) {
-        if (req.consultorioId() == null) throw new IllegalArgumentException("consultorioId es obligatorio");
-        if (req.monto() == null)         throw new IllegalArgumentException("monto es obligatorio");
-        Consultorio consultorio = consultorioRepository.findById(req.consultorioId())
+        Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(req.consultorioId(), profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
         Egreso egreso = Egreso.builder()
                 .fecha(req.fecha() != null ? req.fecha() : LocalDate.now())

@@ -12,7 +12,7 @@ public record PacienteRequest(
         String telefono,
         String email,
         String direccion,
-        String obraSocial,
+        Long obraSocialId,
         String nroAfiliado,
         String planObraSocial,
         String titularObraSocial,

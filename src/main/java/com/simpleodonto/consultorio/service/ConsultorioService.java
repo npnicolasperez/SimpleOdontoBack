@@ -1,9 +1,12 @@
 package com.simpleodonto.consultorio.service;
 
+import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.dto.ConsultorioRequest;
 import com.simpleodonto.consultorio.dto.ConsultorioResponse;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
+import com.simpleodonto.finanzas.repository.EgresoRepository;
+import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +20,9 @@ import java.util.List;
 public class ConsultorioService {
 
     private final ConsultorioRepository consultorioRepository;
+    private final ConsultaRepository    consultaRepository;
+    private final IngresoRepository     ingresoRepository;
+    private final EgresoRepository      egresoRepository;
 
     public List<ConsultorioResponse> listar(Profesional profesional) {
         return consultorioRepository.findByProfesionalId(profesional.getId())
@@ -38,6 +44,12 @@ public class ConsultorioService {
     public void eliminar(Long id, Profesional profesional) {
         Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(id, profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
+        if (consultaRepository.existsByConsultorioId(id))
+            throw new IllegalStateException("No se puede eliminar el consultorio porque tiene consultas asociadas.");
+        if (ingresoRepository.existsByConsultorioId(id))
+            throw new IllegalStateException("No se puede eliminar el consultorio porque tiene ingresos asociados.");
+        if (egresoRepository.existsByConsultorioId(id))
+            throw new IllegalStateException("No se puede eliminar el consultorio porque tiene egresos asociados.");
         consultorioRepository.delete(consultorio);
     }
 

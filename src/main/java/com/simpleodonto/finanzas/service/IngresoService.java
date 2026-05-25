@@ -3,16 +3,23 @@ package com.simpleodonto.finanzas.service;
 import com.simpleodonto.consulta.domain.Consulta;
 import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
+import com.simpleodonto.finanzas.domain.Egreso;
 import com.simpleodonto.finanzas.domain.EstadoIngreso;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.finanzas.domain.MedioPago;
 import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
 import com.simpleodonto.finanzas.dto.IngresoResponse;
+import com.simpleodonto.finanzas.dto.MovimientoResponse;
+import com.simpleodonto.finanzas.repository.EgresoRepository;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.finanzas.repository.MedioPagoRepository;
 import com.simpleodonto.profesional.domain.Profesional;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,14 +27,17 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class IngresoService {
 
-    private final IngresoRepository    ingresoRepository;
-    private final MedioPagoRepository  medioPagoRepository;
+    private final IngresoRepository     ingresoRepository;
+    private final EgresoRepository      egresoRepository;
+    private final MedioPagoRepository   medioPagoRepository;
     private final ConsultorioRepository consultorioRepository;
 
     @Transactional
@@ -65,9 +75,8 @@ public class IngresoService {
 
     @Transactional
     public IngresoResponse crearLibre(Profesional profesional, IngresoLibreRequest req) {
-        if (req.consultorioId() == null) throw new IllegalArgumentException("consultorioId es obligatorio");
-        Consultorio consultorio = consultorioRepository.findById(req.consultorioId())
-                .orElseThrow(() -> new IllegalArgumentException("Consultorio no encontrado"));
+        Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(req.consultorioId(), profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
         Ingreso ingreso = Ingreso.builder()
                 .fecha(LocalDate.now())
                 .consulta(null)
@@ -118,6 +127,61 @@ public class IngresoService {
                 cantConfirmada,
                 cantPendiente
         );
+    }
+
+    public Page<MovimientoResponse> movimientos(Profesional profesional, YearMonth ym,
+                                                String buscar, Long consultorioId, String tipoFiltro, Pageable pageable) {
+        LocalDate desde = ym.atDay(1);
+        LocalDate hasta = ym.plusMonths(1).atDay(1);
+        boolean hayBuscar = buscar != null && !buscar.isBlank();
+
+        List<Ingreso> ingresos = hayBuscar
+                ? ingresoRepository.findByProfesionalIdAndMesAndBuscar(profesional.getId(), desde, hasta, buscar)
+                : ingresoRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
+
+        List<Egreso> egresos = hayBuscar
+                ? egresoRepository.findByProfesionalIdAndMesAndBuscar(profesional.getId(), desde, hasta, buscar)
+                : egresoRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
+
+        if (consultorioId != null) {
+            ingresos = ingresos.stream()
+                    .filter(i -> i.getConsultorio() != null && i.getConsultorio().getId().equals(consultorioId))
+                    .toList();
+            egresos = egresos.stream()
+                    .filter(e -> e.getConsultorio() != null && e.getConsultorio().getId().equals(consultorioId))
+                    .toList();
+        }
+
+        List<MovimientoResponse> all = new ArrayList<>();
+        for (Ingreso i : ingresos) {
+            boolean esPendiente = i.getEstado() == EstadoIngreso.PENDIENTE;
+            if ("egreso".equals(tipoFiltro)) continue;
+            if ("ingreso".equals(tipoFiltro) && esPendiente) continue;
+            if ("pendiente".equals(tipoFiltro) && !esPendiente) continue;
+            String desc = i.getConsulta() != null
+                    ? "Consulta · " + String.join(", ", java.util.stream.Stream.of(
+                            i.getConsulta().getPaciente().getApellido(),
+                            i.getConsulta().getPaciente().getNombre())
+                        .filter(s -> s != null && !s.isBlank()).toList())
+                    : (i.getDescripcion() != null ? i.getDescripcion() : "Ingreso libre");
+            String tipo = esPendiente ? "pendiente" : "ingreso";
+            all.add(new MovimientoResponse(tipo, i.getFecha(), desc, i.getMonto(),
+                    i.getEstado() != null ? i.getEstado().name() : null));
+        }
+        for (Egreso e : egresos) {
+            if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
+            all.add(new MovimientoResponse("egreso", e.getFecha(),
+                    e.getDescripcion() != null ? e.getDescripcion() : "Sin descripción",
+                    e.getMonto(), null));
+        }
+
+        all.sort(Comparator.comparing(MovimientoResponse::fecha).reversed());
+
+        int total = all.size();
+        int start = (int) pageable.getOffset();
+        int end   = Math.min(start + pageable.getPageSize(), total);
+        List<MovimientoResponse> slice = start >= total ? List.of() : all.subList(start, end);
+        return new PageImpl<>(slice, pageable, total);
     }
 
     private EstadoIngreso estadoDesde(BigDecimal monto) {
