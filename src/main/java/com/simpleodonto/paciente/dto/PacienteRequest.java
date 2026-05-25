@@ -12,6 +12,16 @@ public record PacienteRequest(
         String telefono,
         String email,
         String direccion,
-        String obraSocial,
-        String nroAfiliado
+        Long obraSocialId,
+        String nroAfiliado,
+        String planObraSocial,
+        String titularObraSocial,
+        String ocupacion,
+        String grupoSanguineo,
+        String alergias,
+        String medicaciones,
+        String antecedentes,
+        String antecedentesFamiliares,
+        Double peso,
+        Integer altura
 ) {}

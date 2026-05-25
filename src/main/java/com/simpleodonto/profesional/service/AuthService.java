@@ -125,7 +125,8 @@ public class AuthService {
         return new AuthResponse(
                 jwtUtil.generateToken(p.getEmail()),
                 p.getEmail(), p.getNombre(), p.getApellido(),
-                p.isPerfilCompleto()
+                p.isPerfilCompleto(),
+                p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : null
         );
     }
 }

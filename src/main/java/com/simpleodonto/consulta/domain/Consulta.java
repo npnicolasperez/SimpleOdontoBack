@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "consulta")
@@ -30,16 +31,17 @@ public class Consulta extends BaseEntity {
     @JoinColumn(name = "consultorio_id")
     private Consultorio consultorio;
 
-    @Column(name = "motivo_consulta", columnDefinition = "TEXT")
-    private String motivoConsulta;
+    @Column(nullable = false)
+    private LocalDate fecha;
 
-    @Column(name = "practica_realizada", columnDefinition = "TEXT")
-    private String practicaRealizada;
+    @Column(columnDefinition = "TEXT")
+    private String descripcion;
 
-    @Column(nullable = false, precision = 12, scale = 2)
+    @Column(precision = 12, scale = 2)
     private BigDecimal monto;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "tipo_pago", nullable = false, length = 20)
+    @Column(name = "tipo_pago", length = 20)
     private TipoPago tipoPago;
+
 }

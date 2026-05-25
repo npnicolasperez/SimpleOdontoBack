@@ -20,6 +20,4 @@ public class Consultorio extends BaseEntity {
 
     @Column(nullable = false)
     private String nombre;
-
-    private String direccion;
 }

@@ -4,6 +4,7 @@ import com.simpleodonto.paciente.dto.OdontogramaRequest;
 import com.simpleodonto.paciente.dto.OdontogramaResponse;
 import com.simpleodonto.paciente.dto.PacienteRequest;
 import com.simpleodonto.paciente.dto.PacienteResponse;
+import com.simpleodonto.paciente.dto.PacienteStatsResponse;
 import com.simpleodonto.paciente.service.PacienteService;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
@@ -25,6 +26,12 @@ public class PacienteController {
 
     private final PacienteService pacienteService;
     private final TokenService    tokenService;
+
+    @GetMapping("/stats")
+    public PacienteStatsResponse stats(HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return pacienteService.getStats(profesional);
+    }
 
     @GetMapping
     public Page<PacienteResponse> listar(
@@ -67,6 +74,21 @@ public class PacienteController {
         Profesional profesional = tokenService.resolve(request);
         pacienteService.eliminar(id, profesional);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/odontogramas")
+    public java.util.List<OdontogramaResponse> listarOdontogramas(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        return pacienteService.listarOdontogramas(id, tokenService.resolve(request));
+    }
+
+    @PostMapping("/{id}/odontogramas")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OdontogramaResponse crearNuevoOdontograma(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        return pacienteService.crearNuevoOdontograma(id, tokenService.resolve(request));
     }
 
     @GetMapping("/{id}/odontograma")

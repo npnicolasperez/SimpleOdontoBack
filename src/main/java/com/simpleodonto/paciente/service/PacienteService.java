@@ -1,11 +1,14 @@
 package com.simpleodonto.paciente.service;
 
+import com.simpleodonto.obrasocial.domain.ObraSocial;
+import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Odontograma;
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.paciente.dto.OdontogramaRequest;
 import com.simpleodonto.paciente.dto.OdontogramaResponse;
 import com.simpleodonto.paciente.dto.PacienteRequest;
 import com.simpleodonto.paciente.dto.PacienteResponse;
+import com.simpleodonto.paciente.dto.PacienteStatsResponse;
 import com.simpleodonto.paciente.repository.OdontogramaRepository;
 import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -17,6 +20,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +29,8 @@ public class PacienteService {
 
     private final PacienteRepository    pacienteRepository;
     private final OdontogramaRepository odontogramaRepository;
+    private final PacienteStatsService  pacienteStatsService;
+    private final ObraSocialRepository  obraSocialRepository;
 
     public Page<PacienteResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
         if (buscar != null && !buscar.isBlank()) {
@@ -47,8 +54,18 @@ public class PacienteService {
                 .telefono(req.telefono())
                 .email(req.email())
                 .direccion(req.direccion())
-                .obraSocial(req.obraSocial())
+                .obraSocial(resolverObraSocial(req.obraSocialId(), profesional))
                 .nroAfiliado(req.nroAfiliado())
+                .planObraSocial(req.planObraSocial())
+                .titularObraSocial(req.titularObraSocial())
+                .ocupacion(req.ocupacion())
+                .grupoSanguineo(req.grupoSanguineo())
+                .alergias(req.alergias())
+                .medicaciones(req.medicaciones())
+                .antecedentes(req.antecedentes())
+                .antecedentesFamiliares(req.antecedentesFamiliares())
+                .peso(req.peso())
+                .altura(req.altura())
                 .build();
         paciente = pacienteRepository.save(paciente);
 
@@ -74,14 +91,37 @@ public class PacienteService {
         p.setTelefono(req.telefono());
         p.setEmail(req.email());
         p.setDireccion(req.direccion());
-        p.setObraSocial(req.obraSocial());
+        p.setObraSocial(resolverObraSocial(req.obraSocialId(), profesional));
         p.setNroAfiliado(req.nroAfiliado());
+        p.setPlanObraSocial(req.planObraSocial());
+        p.setTitularObraSocial(req.titularObraSocial());
+        p.setOcupacion(req.ocupacion());
+        p.setGrupoSanguineo(req.grupoSanguineo());
+        p.setAlergias(req.alergias());
+        p.setMedicaciones(req.medicaciones());
+        p.setAntecedentes(req.antecedentes());
+        p.setAntecedentesFamiliares(req.antecedentesFamiliares());
+        p.setPeso(req.peso());
+        p.setAltura(req.altura());
         return toResponse(pacienteRepository.save(p));
     }
 
     @Transactional
     public void eliminar(Long id, Profesional profesional) {
         pacienteRepository.delete(findOwned(id, profesional));
+    }
+
+    public List<OdontogramaResponse> listarOdontogramas(Long pacienteId, Profesional profesional) {
+        findOwned(pacienteId, profesional);
+        return odontogramaRepository.findByPacienteIdOrderByDateCreatedDesc(pacienteId)
+                .stream().map(this::toOdontogramaResponse).toList();
+    }
+
+    @Transactional
+    public OdontogramaResponse crearNuevoOdontograma(Long pacienteId, Profesional profesional) {
+        Paciente paciente = findOwned(pacienteId, profesional);
+        return toOdontogramaResponse(odontogramaRepository.save(
+                Odontograma.builder().paciente(paciente).superficies(new HashMap<>()).build()));
     }
 
     public OdontogramaResponse obtenerOdontograma(Long pacienteId, Profesional profesional) {
@@ -97,7 +137,25 @@ public class PacienteService {
         return toOdontogramaResponse(odontogramaRepository.save(od));
     }
 
+    public PacienteStatsResponse getStats(Profesional profesional) {
+        Long id = profesional.getId();
+
+        CompletableFuture<Long> totalF    = pacienteStatsService.contarTotal(id);
+        CompletableFuture<Long> nuevosF   = pacienteStatsService.contarNuevosEsteMes(id);
+        CompletableFuture<Long> conTurnoF = pacienteStatsService.contarConTurnoProximo(id);
+
+        CompletableFuture.allOf(totalF, nuevosF, conTurnoF).join();
+
+        return new PacienteStatsResponse(totalF.join(), nuevosF.join(), conTurnoF.join());
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
+
+    private ObraSocial resolverObraSocial(Long obraSocialId, Profesional profesional) {
+        if (obraSocialId == null) return null;
+        return obraSocialRepository.findByIdAndProfesionalId(obraSocialId, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
+    }
 
     private Paciente findOwned(Long id, Profesional profesional) {
         return pacienteRepository.findByIdAndProfesionalId(id, profesional.getId())
@@ -110,10 +168,17 @@ public class PacienteService {
     }
 
     private PacienteResponse toResponse(Paciente p) {
+        ObraSocial os = p.getObraSocial();
         return new PacienteResponse(
                 p.getId(), p.getNombre(), p.getApellido(), p.getDni(),
                 p.getFechaNac(), p.getTelefono(), p.getEmail(), p.getDireccion(),
-                p.getObraSocial(), p.getNroAfiliado(),
+                os != null ? os.getId()     : null,
+                os != null ? os.getNombre() : null,
+                p.getNroAfiliado(),
+                p.getPlanObraSocial(), p.getTitularObraSocial(),
+                p.getOcupacion(), p.getGrupoSanguineo(),
+                p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),
+                p.getAntecedentesFamiliares(), p.getPeso(), p.getAltura(),
                 p.getDateCreated(), p.getLastUpdated()
         );
     }

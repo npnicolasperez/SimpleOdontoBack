@@ -1,16 +1,23 @@
 package com.simpleodonto.consulta.controller;
 
+import com.simpleodonto.consulta.dto.ArchivoInfo;
 import com.simpleodonto.consulta.dto.ConsultaRequest;
 import com.simpleodonto.consulta.dto.ConsultaResponse;
+import com.simpleodonto.consulta.dto.ConsultaUpdateRequest;
 import com.simpleodonto.consulta.service.ConsultaService;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -23,9 +30,12 @@ public class ConsultaController {
     private final TokenService    tokenService;
 
     @GetMapping
-    public List<ConsultaResponse> listar(HttpServletRequest request) {
+    public Page<ConsultaResponse> listar(
+            @RequestParam(required = false) String buscar,
+            @PageableDefault(size = 30, sort = "dateCreated", direction = Sort.Direction.DESC) Pageable pageable,
+            HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
-        return consultaService.listarUltimas(profesional);
+        return consultaService.listar(buscar, pageable, profesional);
     }
 
     @GetMapping("/paciente/{pacienteId}")
@@ -42,5 +52,51 @@ public class ConsultaController {
             HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(consultaService.crear(req, profesional));
+    }
+
+    @PutMapping("/{id}")
+    public ConsultaResponse actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody ConsultaUpdateRequest req,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return consultaService.actualizar(id, req, profesional);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void eliminar(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        consultaService.eliminar(id, profesional);
+    }
+
+    @PostMapping("/{id}/archivos")
+    public ArchivoInfo agregarArchivo(
+            @PathVariable Long id,
+            @RequestParam("archivo") MultipartFile archivo,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return consultaService.agregarArchivo(id, archivo, profesional);
+    }
+
+    @GetMapping("/{id}/archivos/{archivoId}")
+    public ResponseEntity<byte[]> descargarArchivo(
+            @PathVariable Long id,
+            @PathVariable Long archivoId,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return consultaService.descargarArchivo(id, archivoId, profesional);
+    }
+
+    @DeleteMapping("/{id}/archivos/{archivoId}")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    public void eliminarArchivo(
+            @PathVariable Long id,
+            @PathVariable Long archivoId,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        consultaService.eliminarArchivo(id, archivoId, profesional);
     }
 }
