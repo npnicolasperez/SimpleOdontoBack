@@ -129,6 +129,7 @@ public class AuthService {
     }
 
     private void verificarEstado(Profesional p) {
+        if (p.getEstado() == null) return; // usuarios previos sin estado = ACTIVO
         if (p.getEstado() == EstadoProfesional.PENDIENTE) {
             throw new IllegalArgumentException("Tu cuenta está pendiente de activación.");
         }
