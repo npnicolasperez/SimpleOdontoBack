@@ -33,6 +33,30 @@ public class AuthController {
         return ResponseEntity.ok(authService.loginConGoogle(req));
     }
 
+    @PostMapping("/registro")
+    public ResponseEntity<Void> registro(@Valid @RequestBody InvitarRequest req) {
+        authService.invitar(req);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/invitar")
+    public ResponseEntity<Void> invitar(
+            @Valid @RequestBody InvitarRequest req,
+            HttpServletRequest request) {
+        tokenService.resolve(request);
+        authService.invitar(req);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/activar")
+    public ResponseEntity<Void> activar(
+            @RequestParam String email,
+            HttpServletRequest request) {
+        tokenService.resolve(request);
+        authService.activar(email);
+        return ResponseEntity.ok().build();
+    }
+
     @PutMapping("/completar-perfil")
     public ResponseEntity<AuthResponse> completarPerfil(
             @Valid @RequestBody CompletarPerfilRequest req,

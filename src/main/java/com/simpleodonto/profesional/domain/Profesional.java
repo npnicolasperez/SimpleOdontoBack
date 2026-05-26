@@ -42,6 +42,11 @@ public class Profesional extends BaseEntity implements UserDetails {
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean perfilCompleto;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "varchar(20) default 'ACTIVO'")
+    @Builder.Default
+    private EstadoProfesional estado = EstadoProfesional.PENDIENTE;
+
     @Column(nullable = false)
     @Builder.Default
     private boolean test = false;

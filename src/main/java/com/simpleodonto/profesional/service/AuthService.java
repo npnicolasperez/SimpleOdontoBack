@@ -5,6 +5,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.simpleodonto.profesional.domain.Especialidad;
+import com.simpleodonto.profesional.domain.EstadoProfesional;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.profesional.dto.*;
 import com.simpleodonto.profesional.repository.EspecialidadRepository;
@@ -53,6 +54,7 @@ public class AuthService {
                 .matricula(req.matricula())
                 .especialidad(especialidad)
                 .perfilCompleto(true)
+                .estado(EstadoProfesional.ACTIVO)
                 .build();
         profesionalRepository.save(profesional);
         return toResponse(profesional);
@@ -64,6 +66,7 @@ public class AuthService {
         if (profesional.getPassword() == null || !req.password().equals(profesional.getPassword())) {
             throw new IllegalArgumentException("Credenciales inválidas");
         }
+        verificarEstado(profesional);
         return toResponse(profesional);
     }
 
@@ -86,29 +89,52 @@ public class AuthService {
 
         // Usuario ya registrado con Google
         var existente = profesionalRepository.findByGoogleId(googleId);
-        if (existente.isPresent()) return toResponse(existente.get());
+        if (existente.isPresent()) {
+            verificarEstado(existente.get());
+            return toResponse(existente.get());
+        }
 
         // Cuenta tradicional con el mismo email → vincular Google ID
         var porEmail = profesionalRepository.findByEmail(email);
         if (porEmail.isPresent()) {
             Profesional p = porEmail.get();
+            verificarEstado(p);
             p.setGoogleId(googleId);
             profesionalRepository.save(p);
             return toResponse(p);
         }
 
-        // Primer login con Google → crear profesional con perfil incompleto
-        String finalNombre  = nombre;
-        String finalApellido = apellido;
+        throw new IllegalArgumentException("Tu cuenta no está autorizada. Contactá al administrador.");
+    }
+
+    public void invitar(InvitarRequest req) {
+        if (profesionalRepository.existsByEmail(req.email())) {
+            throw new IllegalArgumentException("El email ya está registrado");
+        }
         Profesional nuevo = Profesional.builder()
-                .nombre(finalNombre)
-                .apellido(finalApellido)
-                .email(email)
-                .googleId(googleId)
+                .nombre(req.nombre())
+                .apellido(req.apellido())
+                .email(req.email())
                 .perfilCompleto(false)
+                .estado(EstadoProfesional.PENDIENTE)
                 .build();
         profesionalRepository.save(nuevo);
-        return toResponse(nuevo);
+    }
+
+    public void activar(String email) {
+        Profesional p = profesionalRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("Profesional no encontrado"));
+        p.setEstado(EstadoProfesional.ACTIVO);
+        profesionalRepository.save(p);
+    }
+
+    private void verificarEstado(Profesional p) {
+        if (p.getEstado() == EstadoProfesional.PENDIENTE) {
+            throw new IllegalArgumentException("Tu cuenta está pendiente de activación.");
+        }
+        if (p.getEstado() == EstadoProfesional.SUSPENDIDO) {
+            throw new IllegalArgumentException("Tu cuenta está suspendida. Contactá al administrador.");
+        }
     }
 
     public AuthResponse completarPerfil(CompletarPerfilRequest req, Profesional profesional) {
