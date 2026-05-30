@@ -36,6 +36,12 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", "Credenciales inválidas"));
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, String>> handleUnauthorized(UnauthorizedException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", e.getMessage()));
+    }
+
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleConflictState(IllegalStateException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

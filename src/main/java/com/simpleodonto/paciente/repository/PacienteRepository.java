@@ -7,7 +7,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 public interface PacienteRepository extends JpaRepository<Paciente, Long> {
@@ -32,4 +34,19 @@ public interface PacienteRepository extends JpaRepository<Paciente, Long> {
 
     Optional<Paciente> findByIdAndProfesionalId(Long id, Long profesionalId);
     boolean existsByObraSocialId(Long obraSocialId);
+
+    @Query("""
+        SELECT COUNT(DISTINCT p.id) FROM Paciente p
+        WHERE p.profesional.id = :profId
+          AND EXISTS (SELECT c FROM Consulta c WHERE c.paciente.id = p.id)
+          AND NOT EXISTS (SELECT c FROM Consulta c WHERE c.paciente.id = p.id AND c.fecha >= :fechaCorte)
+        """)
+    long countPacientesNoVolvieronDesde(@Param("profId") Long profId, @Param("fechaCorte") LocalDate fechaCorte);
+
+    @Query("""
+        SELECT os.nombre FROM Paciente p JOIN p.obraSocial os
+        WHERE p.profesional.id = :profId
+        GROUP BY os.nombre ORDER BY COUNT(p) DESC
+        """)
+    List<String> findTopObraSociales(@Param("profId") Long profId, Pageable pageable);
 }

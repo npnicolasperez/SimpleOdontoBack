@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +17,14 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
     List<Consulta> findByPacienteIdAndProfesionalId(Long pacienteId, Long profesionalId, Sort sort);
     Optional<Consulta> findByIdAndProfesionalId(Long id, Long profesionalId);
     boolean existsByConsultorioId(Long consultorioId);
+
+    @Query("""
+        SELECT c FROM Consulta c
+        WHERE c.profesional.id = :profId AND c.fecha >= :desde AND c.fecha < :hasta
+        """)
+    List<Consulta> findByProfesionalIdAndFechaBetween(@Param("profId") Long profId,
+                                                       @Param("desde") LocalDate desde,
+                                                       @Param("hasta") LocalDate hasta);
 
     @Query("""
         SELECT c FROM Consulta c

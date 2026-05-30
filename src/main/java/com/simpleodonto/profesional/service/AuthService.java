@@ -39,37 +39,6 @@ public class AuthService {
                 .build();
     }
 
-    public AuthResponse register(RegisterRequest req) {
-        if (profesionalRepository.existsByEmail(req.email())) {
-            throw new IllegalArgumentException("El email ya está registrado");
-        }
-        Especialidad especialidad = especialidadRepository.findById(req.especialidadId())
-                .orElseThrow(() -> new EntityNotFoundException("Especialidad no encontrada"));
-
-        Profesional profesional = Profesional.builder()
-                .nombre(req.nombre())
-                .apellido(req.apellido())
-                .email(req.email())
-                .password(req.password())
-                .matricula(req.matricula())
-                .especialidad(especialidad)
-                .perfilCompleto(true)
-                .estado(EstadoProfesional.ACTIVO)
-                .build();
-        profesionalRepository.save(profesional);
-        return toResponse(profesional);
-    }
-
-    public AuthResponse login(LoginRequest req) {
-        Profesional profesional = profesionalRepository.findByEmail(req.email())
-                .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
-        if (profesional.getPassword() == null || !req.password().equals(profesional.getPassword())) {
-            throw new IllegalArgumentException("Credenciales inválidas");
-        }
-        verificarEstado(profesional);
-        return toResponse(profesional);
-    }
-
     public AuthResponse loginConGoogle(GoogleAuthRequest req) {
         GoogleIdToken idToken;
         try {

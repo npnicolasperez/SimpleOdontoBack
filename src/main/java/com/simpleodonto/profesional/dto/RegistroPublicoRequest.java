@@ -3,7 +3,9 @@ package com.simpleodonto.profesional.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
-public record LoginRequest(
+public record RegistroPublicoRequest(
         @NotBlank @Email String email,
-        @NotBlank        String password
+        @NotBlank        String nombre,
+        @NotBlank        String apellido,
+        @NotBlank        String turnstileToken
 ) {}

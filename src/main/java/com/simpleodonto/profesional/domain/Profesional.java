@@ -3,12 +3,6 @@ package com.simpleodonto.profesional.domain;
 import com.simpleodonto.shared.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-
-import java.util.Collection;
-import java.util.List;
 
 @Entity
 @Table(name = "profesional")
@@ -17,7 +11,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class Profesional extends BaseEntity implements UserDetails {
+public class Profesional extends BaseEntity {
 
     @Column(nullable = false)
     private String nombre;
@@ -27,8 +21,6 @@ public class Profesional extends BaseEntity implements UserDetails {
 
     @Column(nullable = false, unique = true)
     private String email;
-
-    private String password;
 
     @Column(unique = true)
     private String googleId;
@@ -65,15 +57,4 @@ public class Profesional extends BaseEntity implements UserDetails {
 
     @Column(name = "google_calendar_sync_token")
     private String googleCalendarSyncToken;
-
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_PROFESIONAL"));
-    }
-
-    @Override public String  getUsername()             { return email; }
-    @Override public boolean isAccountNonExpired()     { return true;  }
-    @Override public boolean isAccountNonLocked()      { return true;  }
-    @Override public boolean isCredentialsNonExpired() { return true;  }
-    @Override public boolean isEnabled()               { return true;  }
 }

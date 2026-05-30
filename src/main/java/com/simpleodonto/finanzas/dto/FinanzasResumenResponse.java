@@ -9,5 +9,7 @@ public record FinanzasResumenResponse(
         BigDecimal pendienteMes,
         long       cantidadTotal,
         long       cantidadConfirmada,
-        long       cantidadPendiente
+        long       cantidadPendiente,
+        Double     variacionPct,
+        BigDecimal ticketPromedio
 ) {}

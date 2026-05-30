@@ -1,11 +1,18 @@
 package com.simpleodonto.shared.security;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -14,15 +21,49 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/error").permitAll()
+                .requestMatchers(HttpMethod.GET,    "/api/especialidades/**").permitAll()
+                .requestMatchers(HttpMethod.POST,   "/api/auth/google", "/api/auth/registro").permitAll()
+                .requestMatchers(HttpMethod.GET,    "/api/calendar/callback").permitAll()
+                .requestMatchers(HttpMethod.POST,   "/api/calendar/webhook").permitAll()
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers(HttpMethod.POST,   "/api/auth/invitar", "/api/auth/activar").hasRole("ADMIN")
+                .anyRequest().authenticated())
+            .exceptionHandling(e -> e
+                .authenticationEntryPoint(authenticationEntryPoint())
+                .accessDeniedHandler(accessDeniedHandler()))
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (req, res, exc) -> {
+            res.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            res.getWriter().write("{\"error\":\"No autenticado\"}");
+        };
+    }
+
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (req, res, exc) -> {
+            res.setStatus(jakarta.servlet.http.HttpServletResponse.SC_FORBIDDEN);
+            res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            res.getWriter().write("{\"error\":\"Acceso denegado\"}");
+        };
     }
 
     @Bean

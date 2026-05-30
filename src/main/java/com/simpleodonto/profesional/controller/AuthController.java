@@ -3,6 +3,7 @@ package com.simpleodonto.profesional.controller;
 import com.simpleodonto.profesional.dto.*;
 import com.simpleodonto.profesional.service.AuthService;
 import com.simpleodonto.shared.security.TokenService;
+import com.simpleodonto.shared.security.TurnstileService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,18 +16,9 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService  authService;
-    private final TokenService tokenService;
-
-    @PostMapping("/register")
-    public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req) {
-        return ResponseEntity.ok(authService.register(req));
-    }
-
-    @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {
-        return ResponseEntity.ok(authService.login(req));
-    }
+    private final AuthService     authService;
+    private final TokenService    tokenService;
+    private final TurnstileService turnstileService;
 
     @PostMapping("/google")
     public ResponseEntity<AuthResponse> loginConGoogle(@RequestBody GoogleAuthRequest req) {
@@ -34,8 +26,11 @@ public class AuthController {
     }
 
     @PostMapping("/registro")
-    public ResponseEntity<Void> registro(@Valid @RequestBody InvitarRequest req) {
-        authService.invitar(req);
+    public ResponseEntity<Void> registro(@Valid @RequestBody RegistroPublicoRequest req) {
+        if (!turnstileService.verify(req.turnstileToken())) {
+            throw new IllegalArgumentException("Verificación anti-bot fallida");
+        }
+        authService.invitar(new InvitarRequest(req.email(), req.nombre(), req.apellido()));
         return ResponseEntity.ok().build();
     }
 

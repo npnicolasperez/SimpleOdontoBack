@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -118,6 +120,36 @@ public class IngresoService {
         long cantConfirmada = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO).count();
         long cantPendiente  = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE).count();
 
+        // Variación vs mes anterior
+        YearMonth ymAnterior = ym.minusMonths(1);
+        List<Ingreso> ingresosAnt = ingresoRepository.findByProfesionalIdAndMes(
+                profesional.getId(), ymAnterior.atDay(1), ym.atDay(1));
+        BigDecimal confirmadoAnt = ingresosAnt.stream()
+                .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO)
+                .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        Double variacionPct = null;
+        if (confirmadoAnt.compareTo(BigDecimal.ZERO) > 0) {
+            variacionPct = confirmado.subtract(confirmadoAnt)
+                    .divide(confirmadoAnt, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .setScale(1, RoundingMode.HALF_UP)
+                    .doubleValue();
+        }
+
+        // Ticket promedio (solo ingresos vinculados a consultas confirmadas)
+        List<Ingreso> consultasConfirmadas = ingresos.stream()
+                .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO && i.getConsulta() != null)
+                .toList();
+        BigDecimal ticketPromedio = null;
+        if (!consultasConfirmadas.isEmpty()) {
+            BigDecimal totalConsultas = consultasConfirmadas.stream()
+                    .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            ticketPromedio = totalConsultas.divide(
+                    BigDecimal.valueOf(consultasConfirmadas.size()), 0, RoundingMode.HALF_UP);
+        }
+
         return new FinanzasResumenResponse(
                 ym.format(DateTimeFormatter.ofPattern("yyyy-MM")),
                 confirmado.add(pendiente),
@@ -125,7 +157,9 @@ public class IngresoService {
                 pendiente,
                 ingresos.size(),
                 cantConfirmada,
-                cantPendiente
+                cantPendiente,
+                variacionPct,
+                ticketPromedio
         );
     }
 
