@@ -49,4 +49,35 @@ public class JwtUtil {
             return false;
         }
     }
+
+    /**
+     * Token de acción de un solo propósito (aprobar/rechazar invitaciones desde un email).
+     * Expira en 7 días por defecto.
+     */
+    public String generateActionToken(String email, String purpose) {
+        long actionExpirationMs = 7L * 24 * 60 * 60 * 1000;
+        return Jwts.builder()
+                .subject(email)
+                .claim("purpose", purpose)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + actionExpirationMs))
+                .signWith(key())
+                .compact();
+    }
+
+    /**
+     * Valida el token y devuelve el email si el purpose coincide. Tira JwtException si no.
+     */
+    public String parseActionToken(String token, String expectedPurpose) {
+        var claims = Jwts.parser()
+                .verifyWith(key())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        String purpose = claims.get("purpose", String.class);
+        if (!expectedPurpose.equals(purpose)) {
+            throw new JwtException("Purpose del token no coincide");
+        }
+        return claims.getSubject();
+    }
 }

@@ -100,6 +100,14 @@ public class AuthService {
         profesionalRepository.save(p);
     }
 
+    public void rechazar(String email) {
+        profesionalRepository.findByEmail(email).ifPresent(p -> {
+            if (p.getEstado() == EstadoProfesional.PENDIENTE) {
+                profesionalRepository.delete(p);
+            }
+        });
+    }
+
     private void verificarEstado(Profesional p) {
         if (p.getEstado() == null) return; // usuarios previos sin estado = ACTIVO
         if (p.getEstado() == EstadoProfesional.PENDIENTE) {
