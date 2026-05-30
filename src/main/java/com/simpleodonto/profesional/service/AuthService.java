@@ -7,6 +7,7 @@ import com.google.api.client.json.gson.GsonFactory;
 import com.simpleodonto.profesional.domain.Especialidad;
 import com.simpleodonto.profesional.domain.EstadoProfesional;
 import com.simpleodonto.profesional.domain.Profesional;
+import com.simpleodonto.notification.service.AdminNotificationService;
 import com.simpleodonto.profesional.dto.*;
 import com.simpleodonto.profesional.repository.EspecialidadRepository;
 import com.simpleodonto.profesional.repository.ProfesionalRepository;
@@ -23,9 +24,10 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final ProfesionalRepository  profesionalRepository;
-    private final EspecialidadRepository especialidadRepository;
-    private final JwtUtil                jwtUtil;
+    private final ProfesionalRepository     profesionalRepository;
+    private final EspecialidadRepository    especialidadRepository;
+    private final JwtUtil                   jwtUtil;
+    private final AdminNotificationService  adminNotification;
 
     @Value("${google.client-id}")
     private String googleClientId;
@@ -87,7 +89,8 @@ public class AuthService {
                 .perfilCompleto(false)
                 .estado(EstadoProfesional.PENDIENTE)
                 .build();
-        profesionalRepository.save(nuevo);
+        Profesional saved = profesionalRepository.save(nuevo);
+        adminNotification.notifyNuevoPendiente(saved);
     }
 
     public void activar(String email) {

@@ -31,4 +31,8 @@ public class AdminEmails {
         if (email == null) return false;
         return emails.contains(email.toLowerCase(Locale.ROOT));
     }
+
+    public Set<String> all() {
+        return emails;
+    }
 }

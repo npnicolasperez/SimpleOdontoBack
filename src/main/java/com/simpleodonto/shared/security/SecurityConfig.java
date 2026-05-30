@@ -72,6 +72,8 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of(
             "http://localhost:5173",
             "http://localhost:4000",
+            "https://holadocapp.com",
+            "https://www.holadocapp.com",
             "https://simpleodonto-production.up.railway.app"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
