@@ -40,7 +40,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,    "/api/calendar/callback").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/calendar/webhook").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers(HttpMethod.POST,   "/api/auth/invitar", "/api/auth/activar").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST,   "/api/auth/activar").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(authenticationEntryPoint())
