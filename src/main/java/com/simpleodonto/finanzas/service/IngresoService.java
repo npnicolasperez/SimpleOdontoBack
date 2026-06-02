@@ -43,13 +43,13 @@ public class IngresoService {
     private final ConsultorioRepository consultorioRepository;
 
     @Transactional
-    public void crearDesdeConsulta(Consulta consulta, Long medioPagoId) {
+    public void crearDesdeConsulta(Consulta consulta, Long medioPagoId, Boolean pendienteCobro) {
         Ingreso ingreso = Ingreso.builder()
                 .fecha(consulta.getFecha() != null ? consulta.getFecha() : LocalDate.now())
                 .consulta(consulta)
                 .profesional(consulta.getProfesional())
                 .monto(consulta.getMonto())
-                .estado(estadoDesde(consulta.getMonto()))
+                .estado(resolverEstado(pendienteCobro, consulta.getMonto()))
                 .tipoPago(consulta.getTipoPago())
                 .medioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()))
                 .consultorio(consulta.getConsultorio())
@@ -58,11 +58,11 @@ public class IngresoService {
     }
 
     @Transactional
-    public void actualizarDesdeConsulta(Consulta consulta, Long medioPagoId) {
+    public void actualizarDesdeConsulta(Consulta consulta, Long medioPagoId, Boolean pendienteCobro) {
         ingresoRepository.findByConsultaId(consulta.getId()).ifPresent(ingreso -> {
             ingreso.setFecha(consulta.getFecha() != null ? consulta.getFecha() : LocalDate.now());
             ingreso.setMonto(consulta.getMonto());
-            ingreso.setEstado(estadoDesde(consulta.getMonto()));
+            ingreso.setEstado(resolverEstado(pendienteCobro, consulta.getMonto()));
             ingreso.setTipoPago(consulta.getTipoPago());
             ingreso.setMedioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()));
             ingreso.setConsultorio(consulta.getConsultorio());
@@ -70,9 +70,37 @@ public class IngresoService {
         });
     }
 
+    /**
+     * Estado del ingreso para una consulta: si el flag pendienteCobro viene en true → PENDIENTE,
+     * en false → CONFIRMADO. Si viene null (cliente legacy), cae al cálculo viejo basado en monto.
+     */
+    private EstadoIngreso resolverEstado(Boolean pendienteCobro, BigDecimal monto) {
+        if (pendienteCobro != null) {
+            return pendienteCobro ? EstadoIngreso.PENDIENTE : EstadoIngreso.CONFIRMADO;
+        }
+        return estadoDesde(monto);
+    }
+
     @Transactional
     public void eliminarPorConsulta(Long consultaId) {
         ingresoRepository.findByConsultaId(consultaId).ifPresent(ingresoRepository::delete);
+    }
+
+    /**
+     * Elimina un ingreso libre (no vinculado a consulta). Los ingresos de consulta se eliminan
+     * borrando la consulta, no desde acá.
+     */
+    @Transactional
+    public void eliminarLibre(Long ingresoId, Profesional profesional) {
+        Ingreso ingreso = ingresoRepository.findById(ingresoId)
+                .orElseThrow(() -> new EntityNotFoundException("Ingreso no encontrado"));
+        if (!ingreso.getProfesional().getId().equals(profesional.getId())) {
+            throw new EntityNotFoundException("Ingreso no encontrado");
+        }
+        if (ingreso.getConsulta() != null) {
+            throw new IllegalArgumentException("No se puede eliminar un ingreso vinculado a una consulta. Eliminá la consulta.");
+        }
+        ingresoRepository.delete(ingreso);
     }
 
     @Transactional
@@ -137,17 +165,17 @@ public class IngresoService {
                     .doubleValue();
         }
 
-        // Ticket promedio (solo ingresos vinculados a consultas confirmadas)
-        List<Ingreso> consultasConfirmadas = ingresos.stream()
-                .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO && i.getConsulta() != null)
+        // Consulta promedio: incluye ingresos vinculados a consultas (confirmados + pendientes con monto).
+        List<Ingreso> consultasConMonto = ingresos.stream()
+                .filter(i -> i.getConsulta() != null && i.getMonto() != null && i.getMonto().compareTo(BigDecimal.ZERO) > 0)
                 .toList();
         BigDecimal ticketPromedio = null;
-        if (!consultasConfirmadas.isEmpty()) {
-            BigDecimal totalConsultas = consultasConfirmadas.stream()
-                    .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
+        if (!consultasConMonto.isEmpty()) {
+            BigDecimal totalConsultas = consultasConMonto.stream()
+                    .map(Ingreso::getMonto)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             ticketPromedio = totalConsultas.divide(
-                    BigDecimal.valueOf(consultasConfirmadas.size()), 0, RoundingMode.HALF_UP);
+                    BigDecimal.valueOf(consultasConMonto.size()), 0, RoundingMode.HALF_UP);
         }
 
         return new FinanzasResumenResponse(
@@ -199,14 +227,17 @@ public class IngresoService {
                         .filter(s -> s != null && !s.isBlank()).toList())
                     : (i.getDescripcion() != null ? i.getDescripcion() : "Ingreso libre");
             String tipo = esPendiente ? "pendiente" : "ingreso";
-            all.add(new MovimientoResponse(tipo, i.getFecha(), desc, i.getMonto(),
+            BigDecimal montoTotal = i.getConsulta() != null ? i.getConsulta().getMontoTotal() : null;
+            Integer porcentaje    = i.getConsulta() != null ? i.getConsulta().getPorcentajeProfesional() : null;
+            String origen = i.getConsulta() != null ? "consulta" : "libre";
+            all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(), montoTotal, porcentaje,
                     i.getEstado() != null ? i.getEstado().name() : null));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
-            all.add(new MovimientoResponse("egreso", e.getFecha(),
+            all.add(new MovimientoResponse(e.getId(), "egreso", "egreso", e.getFecha(),
                     e.getDescripcion() != null ? e.getDescripcion() : "Sin descripción",
-                    e.getMonto(), null));
+                    e.getMonto(), null, null, null));
         }
 
         all.sort(Comparator.comparing(MovimientoResponse::fecha).reversed());

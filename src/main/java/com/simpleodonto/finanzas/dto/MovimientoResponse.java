@@ -4,9 +4,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record MovimientoResponse(
-        String     tipo,         // "ingreso" | "egreso" | "pendiente"
+        Long       id,                    // id del Ingreso o Egreso (para acciones)
+        String     origen,                // "consulta" | "libre" | "egreso"
+        String     tipo,                  // "ingreso" | "egreso" | "pendiente"
         LocalDate  fecha,
         String     descripcion,
-        BigDecimal monto,
-        String     estado        // "CONFIRMADO" | "PENDIENTE" | null
+        BigDecimal monto,                 // lo que entra al profesional
+        BigDecimal montoTotal,            // total de la práctica, null si no aplica
+        Integer    porcentajeProfesional, // %, null si no aplica o es 100
+        String     estado                 // "CONFIRMADO" | "PENDIENTE" | null
 ) {}

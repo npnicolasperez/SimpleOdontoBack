@@ -29,6 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -77,12 +79,14 @@ public class ConsultaService {
                 .consultorio(consultorio)
                 .fecha(req.fecha() != null ? req.fecha() : LocalDate.now())
                 .descripcion(req.descripcion())
-                .monto(req.monto())
+                .montoTotal(req.montoTotal())
+                .porcentajeProfesional(req.porcentajeProfesional())
+                .monto(calcularMontoProfesional(req.montoTotal(), req.porcentajeProfesional()))
                 .tipoPago(req.tipoPago())
                 .build();
 
         Consulta saved = consultaRepository.save(consulta);
-        ingresoService.crearDesdeConsulta(saved, req.medioPagoId());
+        ingresoService.crearDesdeConsulta(saved, req.medioPagoId(), req.pendienteCobro());
         return toResponse(saved);
     }
 
@@ -101,12 +105,25 @@ public class ConsultaService {
         consulta.setConsultorio(consultorio);
         if (req.fecha() != null) consulta.setFecha(req.fecha());
         consulta.setDescripcion(req.descripcion());
-        consulta.setMonto(req.monto());
+        consulta.setMontoTotal(req.montoTotal());
+        consulta.setPorcentajeProfesional(req.porcentajeProfesional());
+        consulta.setMonto(calcularMontoProfesional(req.montoTotal(), req.porcentajeProfesional()));
         consulta.setTipoPago(req.tipoPago());
 
         Consulta saved = consultaRepository.save(consulta);
-        ingresoService.actualizarDesdeConsulta(saved, req.medioPagoId());
+        ingresoService.actualizarDesdeConsulta(saved, req.medioPagoId(), req.pendienteCobro());
         return toResponse(saved);
+    }
+
+    /**
+     * Calcula el monto que efectivamente cobra el profesional a partir del total y el porcentaje.
+     * Retorna null si falta alguno (sin desglose definido). Redondea a 2 decimales.
+     */
+    private BigDecimal calcularMontoProfesional(BigDecimal montoTotal, Integer porcentaje) {
+        if (montoTotal == null || porcentaje == null) return null;
+        return montoTotal
+                .multiply(BigDecimal.valueOf(porcentaje))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
     }
 
     @Transactional
@@ -172,6 +189,8 @@ public class ConsultaService {
                         c.getConsultorio() != null ? c.getConsultorio().getNombre() : null,
                         c.getFecha(),
                         c.getDescripcion(),
+                        c.getMontoTotal(),
+                        c.getPorcentajeProfesional(),
                         c.getMonto(),
                         c.getTipoPago(),
                         ingreso.getMedioPago() != null ? ingreso.getMedioPago().getId()     : null,
@@ -191,6 +210,8 @@ public class ConsultaService {
                         c.getConsultorio() != null ? c.getConsultorio().getNombre() : null,
                         c.getFecha(),
                         c.getDescripcion(),
+                        c.getMontoTotal(),
+                        c.getPorcentajeProfesional(),
                         c.getMonto(),
                         c.getTipoPago(),
                         null, null, null,

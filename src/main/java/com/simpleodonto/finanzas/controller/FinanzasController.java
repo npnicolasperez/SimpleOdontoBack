@@ -64,4 +64,12 @@ public class FinanzasController {
         Profesional profesional = tokenService.resolve(request);
         return ingresoService.crearLibre(profesional, body);
     }
+
+    @DeleteMapping("/ingresos/{id}")
+    public void eliminarIngreso(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        ingresoService.eliminarLibre(id, profesional);
+    }
 }

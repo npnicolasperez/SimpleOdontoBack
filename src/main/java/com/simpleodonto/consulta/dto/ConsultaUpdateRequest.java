@@ -9,7 +9,9 @@ public record ConsultaUpdateRequest(
         Long       consultorioId,
         LocalDate  fecha,
         String     descripcion,
-        BigDecimal monto,
+        BigDecimal montoTotal,
+        Integer    porcentajeProfesional,
         TipoPago   tipoPago,
-        Long       medioPagoId
+        Long       medioPagoId,
+        Boolean    pendienteCobro
 ) {}

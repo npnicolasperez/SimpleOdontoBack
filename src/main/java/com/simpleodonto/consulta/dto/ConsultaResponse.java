@@ -18,6 +18,8 @@ public record ConsultaResponse(
         String          consultorioNombre,
         LocalDate       fecha,
         String          descripcion,
+        BigDecimal      montoTotal,
+        Integer         porcentajeProfesional,
         BigDecimal      monto,
         TipoPago        tipoPago,
         Long            medioPagoId,
