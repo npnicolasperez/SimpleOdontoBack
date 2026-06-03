@@ -21,5 +21,11 @@ public record DashboardResponse(
         // Productividad
         String diaMasConsultas,
         String obraSocialMasPacientes,
-        Double promedioConsultasPorDia
+        Double promedioConsultasPorDia,
+
+        // Consultas
+        long consultasMes,
+
+        // Turnos mañana
+        long turnosPendientesManana
 ) {}

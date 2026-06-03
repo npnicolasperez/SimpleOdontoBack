@@ -8,17 +8,18 @@ import com.simpleodonto.consulta.domain.Consulta;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.TokenService;
-import com.simpleodonto.turno.domain.Turno;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,7 +35,9 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping
-    public DashboardResponse dashboard(HttpServletRequest request) throws Exception {
+    public DashboardResponse dashboard(
+            HttpServletRequest request,
+            @RequestParam(required = false) String mes) throws Exception {
         Profesional prof   = tokenService.resolve(request);
         Long        profId = prof.getId();
 
@@ -42,20 +45,28 @@ public class DashboardController {
         LocalDateTime ahora     = LocalDateTime.now();
         LocalDate     inicioMes = hoy.withDayOfMonth(1);
         LocalDate     finMes    = inicioMes.plusMonths(1);
-        LocalDateTime inicioHoy = hoy.atStartOfDay();
-        LocalDateTime finHoy    = hoy.plusDays(1).atStartOfDay();
+        LocalDateTime inicioHoy    = hoy.atStartOfDay();
+        LocalDateTime finHoy       = hoy.plusDays(1).atStartOfDay();
+        LocalDateTime inicioManana = finHoy;
+        LocalDateTime finManana    = hoy.plusDays(2).atStartOfDay();
+
+        // Mes seleccionado para stats de consultas (default: mes actual)
+        YearMonth ymSel        = (mes != null && !mes.isBlank()) ? YearMonth.parse(mes) : YearMonth.from(hoy);
+        LocalDate inicioMesSel = ymSel.atDay(1);
+        LocalDate finMesSel    = ymSel.plusMonths(1).atDay(1);
 
         // Lanzar todas las queries en paralelo
-        CompletableFuture<Long>            fTotal       = dashboardService.fetchPacientesTotal(profId);
-        CompletableFuture<Long>            fNuevos      = dashboardService.fetchPacientesNuevos(profId, inicioMes.atStartOfDay());
-        CompletableFuture<Long>            fNoVolvieron = dashboardService.fetchPacientesNoVolvieron(profId, hoy.minusDays(90));
-        CompletableFuture<Long>            fPendHoy     = dashboardService.fetchTurnosPendientesHoy(profId, inicioHoy, finHoy);
-        CompletableFuture<Optional<Turno>> fProximo     = dashboardService.fetchProximoTurno(profId, ahora);
-        CompletableFuture<List<Ingreso>>   fIngresos    = dashboardService.fetchIngresosMes(profId, inicioMes, finMes);
-        CompletableFuture<List<Consulta>>  fConsultas   = dashboardService.fetchConsultasMes(profId, inicioMes, finMes);
-        CompletableFuture<String>          fObraSocial  = dashboardService.fetchTopObraSocial(profId);
+        CompletableFuture<Long>                      fTotal        = dashboardService.fetchPacientesTotal(profId);
+        CompletableFuture<Long>                      fNuevos       = dashboardService.fetchPacientesNuevos(profId, inicioMes.atStartOfDay());
+        CompletableFuture<Long>                      fNoVolvieron  = dashboardService.fetchPacientesNoVolvieron(profId, hoy.minusDays(90));
+        CompletableFuture<Long>                      fPendHoy      = dashboardService.fetchTurnosPendientesHoy(profId, inicioHoy, finHoy);
+        CompletableFuture<Long>                      fPendManana   = dashboardService.fetchTurnosPendientesHoy(profId, inicioManana, finManana);
+        CompletableFuture<Optional<ProximoTurnoDto>> fProximo      = dashboardService.fetchProximoTurno(profId, ahora);
+        CompletableFuture<List<Ingreso>>             fIngresos     = dashboardService.fetchIngresosMes(profId, inicioMes, finMes);
+        CompletableFuture<List<Consulta>>            fConsultas    = dashboardService.fetchConsultasMes(profId, inicioMesSel, finMesSel);
+        CompletableFuture<String>                    fObraSocial   = dashboardService.fetchTopObraSocial(profId);
 
-        CompletableFuture.allOf(fTotal, fNuevos, fNoVolvieron, fPendHoy, fProximo, fIngresos, fConsultas, fObraSocial).join();
+        CompletableFuture.allOf(fTotal, fNuevos, fNoVolvieron, fPendHoy, fPendManana, fProximo, fIngresos, fConsultas, fObraSocial).join();
 
         // Financiero
         List<Ingreso> ingresos  = fIngresos.get();
@@ -87,18 +98,16 @@ public class DashboardController {
             if (diasDistintos > 0) promedio = (double) consultas.size() / diasDistintos;
         }
 
-        // Próximo turno
-        ProximoTurnoDto proximoDto = fProximo.get().map(t -> {
-            String nombre   = t.getPaciente() != null ? t.getPaciente().getNombre()   : t.getNombrePacienteLibre();
-            String apellido = t.getPaciente() != null ? t.getPaciente().getApellido() : null;
-            return new ProximoTurnoDto(t.getFechaHora(), nombre, apellido);
-        }).orElse(null);
+        // Próximo turno (mapeado dentro del @Transactional del service para evitar LazyInitializationException)
+        ProximoTurnoDto proximoDto = fProximo.get().orElse(null);
 
         return new DashboardResponse(
                 fTotal.get(), fNuevos.get(), fNoVolvieron.get(),
                 fPendHoy.get(), proximoDto,
                 cobrado.add(pendiente), cobrado, pendiente, cobrosPendientes,
-                diaMas, fObraSocial.get(), promedio
+                diaMas, fObraSocial.get(), promedio,
+                consultas.size(),
+                fPendManana.get()
         );
     }
 

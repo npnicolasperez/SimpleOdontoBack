@@ -5,6 +5,7 @@ import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.paciente.repository.PacienteRepository;
+import com.simpleodonto.dashboard.dto.ProximoTurnoDto;
 import com.simpleodonto.turno.domain.EstadoTurno;
 import com.simpleodonto.turno.domain.Turno;
 import com.simpleodonto.turno.repository.TurnoRepository;
@@ -59,9 +60,15 @@ public class DashboardService {
 
     @Async
     @Transactional(readOnly = true)
-    public CompletableFuture<Optional<Turno>> fetchProximoTurno(Long profId, LocalDateTime ahora) {
-        return CompletableFuture.completedFuture(
-                turnoRepository.findFirstByProfesionalIdAndFechaHoraAfterOrderByFechaHora(profId, ahora));
+    public CompletableFuture<Optional<ProximoTurnoDto>> fetchProximoTurno(Long profId, LocalDateTime ahora) {
+        Optional<ProximoTurnoDto> dto = turnoRepository
+                .findFirstByProfesionalIdAndFechaHoraAfterOrderByFechaHora(profId, ahora)
+                .map(t -> {
+                    String nombre   = t.getPaciente() != null ? t.getPaciente().getNombre()   : t.getNombrePacienteLibre();
+                    String apellido = t.getPaciente() != null ? t.getPaciente().getApellido() : null;
+                    return new ProximoTurnoDto(t.getFechaHora(), nombre, apellido);
+                });
+        return CompletableFuture.completedFuture(dto);
     }
 
     @Async
