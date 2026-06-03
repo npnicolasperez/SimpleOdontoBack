@@ -56,7 +56,8 @@ public class GlobalExceptionHandler {
                         fe -> fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "inválido",
                         (a, b) -> a
                 ));
-        return ResponseEntity.badRequest().body(Map.of("errors", errors));
+        String first = errors.values().stream().findFirst().orElse("Datos inválidos");
+        return ResponseEntity.badRequest().body(Map.of("error", first, "errors", errors));
     }
 
     @ExceptionHandler(Exception.class)

@@ -7,8 +7,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record ConsultaRequest(
-        @NotNull Long pacienteId,
-        Long          consultorioId,
+        @NotNull(message = "Falta el paciente") Long pacienteId,
+        @NotNull(message = "Seleccioná un consultorio") Long consultorioId,
         LocalDate     fecha,
         String        descripcion,
         BigDecimal    montoTotal,
