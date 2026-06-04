@@ -5,6 +5,7 @@ import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.paciente.repository.PacienteRepository;
+import com.simpleodonto.dashboard.dto.IngresoMensualDto;
 import com.simpleodonto.dashboard.dto.ProximoTurnoDto;
 import com.simpleodonto.turno.domain.EstadoTurno;
 import com.simpleodonto.turno.domain.Turno;
@@ -15,11 +16,16 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -90,5 +96,36 @@ public class DashboardService {
     public CompletableFuture<String> fetchTopObraSocial(Long profId) {
         List<String> top = pacienteRepository.findTopObraSociales(profId, PageRequest.of(0, 1));
         return CompletableFuture.completedFuture(top.isEmpty() ? null : top.get(0));
+    }
+
+    /**
+     * Devuelve los ingresos CONFIRMADOS sumados por mes, para los últimos 12 meses (incluye el mes actual).
+     * Los meses sin ingresos vienen con total = 0 para que el gráfico no tenga huecos.
+     */
+    @Transactional(readOnly = true)
+    public List<IngresoMensualDto> getIngresosUltimos12Meses(Long profId) {
+        LocalDate hoy    = LocalDate.now();
+        LocalDate desde  = hoy.withDayOfMonth(1).minusMonths(11);
+        LocalDate hasta  = hoy.withDayOfMonth(1).plusMonths(1);
+
+        List<Ingreso> ingresos = ingresoRepository.findConfirmadosByProfesionalIdAndRango(profId, desde, hasta);
+
+        Map<YearMonth, BigDecimal> porMes = ingresos.stream()
+                .filter(i -> i.getFecha() != null)
+                .collect(Collectors.groupingBy(
+                        i -> YearMonth.from(i.getFecha()),
+                        Collectors.reducing(BigDecimal.ZERO,
+                                i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO,
+                                BigDecimal::add)));
+
+        List<IngresoMensualDto> resultado = new ArrayList<>(12);
+        YearMonth actual = YearMonth.from(desde);
+        YearMonth fin    = YearMonth.from(hoy);
+        while (!actual.isAfter(fin)) {
+            BigDecimal total = porMes.getOrDefault(actual, BigDecimal.ZERO);
+            resultado.add(new IngresoMensualDto(actual.getYear(), actual.getMonthValue(), total));
+            actual = actual.plusMonths(1);
+        }
+        return resultado;
     }
 }

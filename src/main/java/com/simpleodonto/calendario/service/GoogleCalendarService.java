@@ -28,6 +28,7 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -54,23 +55,38 @@ public class GoogleCalendarService {
 
     private static final String REDIRECT_URI_PATH = "/api/calendar/callback";
     private static final String APPLICATION_NAME  = "HelloDoc";
+    private static final long   STATE_TTL_MS      = 10L * 60 * 1000;
 
     private final ProfesionalRepository profesionalRepository;
     private final TurnoRepository       turnoRepository;
 
+    // state OAuth → { profesionalId, creadoMs } — solo vive en memoria hasta que se consume
+    private final ConcurrentHashMap<String, StateEntry> oauthStates = new ConcurrentHashMap<>();
+    private record StateEntry(Long profesionalId, long creadoMs) {}
+
     // ── OAuth ──────────────────────────────────────────────────────────────
 
     public String getAuthorizationUrl(Profesional profesional) throws Exception {
+        purgarStatesExpirados();
+        String state = UUID.randomUUID().toString();
+        oauthStates.put(state, new StateEntry(profesional.getId(), System.currentTimeMillis()));
+
         GoogleAuthorizationCodeFlow flow = buildFlow();
         return flow.newAuthorizationUrl()
                 .setRedirectUri(baseUrl + REDIRECT_URI_PATH)
-                .setState(String.valueOf(profesional.getId()))
+                .setState(state)
                 .set("login_hint", profesional.getEmail())
                 .build();
     }
 
     @Transactional
-    public String handleCallback(String code, Long profesionalId) throws Exception {
+    public String handleCallback(String code, String state) throws Exception {
+        StateEntry entry = oauthStates.remove(state);   // single-use
+        if (entry == null || System.currentTimeMillis() - entry.creadoMs() > STATE_TTL_MS) {
+            throw new IllegalArgumentException("State OAuth inválido o expirado");
+        }
+        Long profesionalId = entry.profesionalId();
+
         GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
                 new NetHttpTransport(),
                 GsonFactory.getDefaultInstance(),
@@ -265,6 +281,11 @@ public class GoogleCalendarService {
         return new Calendar.Builder(transport, jsonFactory, credential)
                 .setApplicationName(APPLICATION_NAME)
                 .build();
+    }
+
+    private void purgarStatesExpirados() {
+        long ahora = System.currentTimeMillis();
+        oauthStates.entrySet().removeIf(e -> ahora - e.getValue().creadoMs() > STATE_TTL_MS);
     }
 
     private Event buildEvent(Turno turno) {

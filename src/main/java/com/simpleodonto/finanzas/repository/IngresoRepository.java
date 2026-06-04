@@ -35,4 +35,13 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta,
             @Param("buscar") String buscar);
+
+    @Query("SELECT i FROM Ingreso i " +
+           "WHERE i.profesional.id = :profesionalId " +
+           "AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.CONFIRMADO " +
+           "AND i.fecha >= :desde AND i.fecha < :hasta")
+    List<Ingreso> findConfirmadosByProfesionalIdAndRango(
+            @Param("profesionalId") Long profesionalId,
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta);
 }

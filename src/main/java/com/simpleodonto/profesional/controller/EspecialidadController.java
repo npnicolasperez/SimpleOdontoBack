@@ -1,8 +1,12 @@
 package com.simpleodonto.profesional.controller;
 
+import com.simpleodonto.profesional.dto.EspecialidadRequest;
 import com.simpleodonto.profesional.dto.EspecialidadResponse;
-import com.simpleodonto.profesional.repository.EspecialidadRepository;
+import com.simpleodonto.profesional.service.EspecialidadService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,12 +16,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EspecialidadController {
 
-    private final EspecialidadRepository especialidadRepository;
+    private final EspecialidadService especialidadService;
 
     @GetMapping
     public List<EspecialidadResponse> listar() {
-        return especialidadRepository.findAll().stream()
-                .map(e -> new EspecialidadResponse(e.getId(), e.getNombre()))
-                .toList();
+        return especialidadService.listar();
+    }
+
+    @PostMapping
+    public ResponseEntity<EspecialidadResponse> crear(@Valid @RequestBody EspecialidadRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(especialidadService.crear(req));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+        especialidadService.eliminar(id);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -11,6 +11,7 @@ import com.simpleodonto.notification.service.AdminNotificationService;
 import com.simpleodonto.profesional.dto.*;
 import com.simpleodonto.profesional.repository.EspecialidadRepository;
 import com.simpleodonto.profesional.repository.ProfesionalRepository;
+import com.simpleodonto.shared.security.AdminEmails;
 import com.simpleodonto.shared.security.JwtUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
@@ -28,6 +29,7 @@ public class AuthService {
     private final EspecialidadRepository    especialidadRepository;
     private final JwtUtil                   jwtUtil;
     private final AdminNotificationService  adminNotification;
+    private final AdminEmails               adminEmails;
 
     @Value("${google.client-id}")
     private String googleClientId;
@@ -133,7 +135,8 @@ public class AuthService {
                 jwtUtil.generateToken(p.getEmail()),
                 p.getEmail(), p.getNombre(), p.getApellido(),
                 p.isPerfilCompleto(),
-                p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : null
+                p.getEspecialidad() != null ? p.getEspecialidad().getNombre() : null,
+                adminEmails.isAdmin(p.getEmail())
         );
     }
 }

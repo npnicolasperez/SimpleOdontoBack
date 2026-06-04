@@ -1,6 +1,7 @@
 package com.simpleodonto.dashboard.controller;
 
 import com.simpleodonto.dashboard.dto.DashboardResponse;
+import com.simpleodonto.dashboard.dto.IngresoMensualDto;
 import com.simpleodonto.dashboard.dto.ProximoTurnoDto;
 import com.simpleodonto.dashboard.service.DashboardService;
 import com.simpleodonto.finanzas.domain.EstadoIngreso;
@@ -109,6 +110,12 @@ public class DashboardController {
                 consultas.size(),
                 fPendManana.get()
         );
+    }
+
+    @GetMapping("/ingresos-anuales")
+    public List<IngresoMensualDto> ingresosAnuales(HttpServletRequest request) {
+        Profesional prof = tokenService.resolve(request);
+        return dashboardService.getIngresosUltimos12Meses(prof.getId());
     }
 
     private static String nombreDia(DayOfWeek d) {

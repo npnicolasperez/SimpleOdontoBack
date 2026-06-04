@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST,   "/api/calendar/webhook").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/auth/activar").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST,   "/api/especialidades").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/especialidades/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(e -> e
                 .authenticationEntryPoint(authenticationEntryPoint())

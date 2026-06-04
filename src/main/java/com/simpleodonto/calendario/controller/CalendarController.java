@@ -34,8 +34,7 @@ public class CalendarController {
             @RequestParam String code,
             @RequestParam String state) {
         try {
-            Long profesionalId = Long.parseLong(state);
-            String redirectUrl = googleCalendarService.handleCallback(code, profesionalId);
+            String redirectUrl = googleCalendarService.handleCallback(code, state);
             return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(redirectUrl)).build();
         } catch (Exception e) {
             log.error("Error en callback de Google Calendar: {}", e.getMessage());
