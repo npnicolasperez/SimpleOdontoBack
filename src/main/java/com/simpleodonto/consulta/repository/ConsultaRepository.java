@@ -36,4 +36,13 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
     Page<Consulta> buscar(@Param("profesionalId") Long profesionalId,
                           @Param("buscar") String buscar,
                           Pageable pageable);
+
+    @Query("""
+        SELECT c FROM Consulta c
+        WHERE c.profesional.id = :profesionalId
+          AND c.firmaSolicitadaEn IS NOT NULL
+          AND c.firmaPng IS NULL
+        ORDER BY c.firmaSolicitadaEn DESC
+        """)
+    List<Consulta> findFirmasPendientes(@Param("profesionalId") Long profesionalId, Pageable pageable);
 }

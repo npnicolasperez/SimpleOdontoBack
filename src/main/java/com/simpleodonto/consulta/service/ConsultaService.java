@@ -178,6 +178,7 @@ public class ConsultaService {
                 .stream()
                 .map(a -> new ArchivoInfo(a.getId(), a.getNombre(), a.getTipo()))
                 .toList();
+        boolean firmada = c.getFirmaPng() != null;
         return ingresoRepository.findByConsultaId(c.getId())
                 .map(ingreso -> new ConsultaResponse(
                         c.getId(),
@@ -198,7 +199,9 @@ public class ConsultaService {
                         ingreso.getEstado(),
                         c.getDateCreated(),
                         c.getLastUpdated(),
-                        archivos
+                        archivos,
+                        firmada,
+                        c.getFirmaFecha()
                 ))
                 .orElseGet(() -> new ConsultaResponse(
                         c.getId(),
@@ -217,7 +220,9 @@ public class ConsultaService {
                         null, null, null,
                         c.getDateCreated(),
                         c.getLastUpdated(),
-                        archivos
+                        archivos,
+                        firmada,
+                        c.getFirmaFecha()
                 ));
     }
 }

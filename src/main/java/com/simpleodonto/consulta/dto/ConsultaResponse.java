@@ -27,5 +27,7 @@ public record ConsultaResponse(
         EstadoIngreso   estadoIngreso,
         LocalDateTime   dateCreated,
         LocalDateTime   lastUpdated,
-        List<ArchivoInfo> archivos
+        List<ArchivoInfo> archivos,
+        boolean         firmada,
+        LocalDateTime   firmaFecha
 ) {}

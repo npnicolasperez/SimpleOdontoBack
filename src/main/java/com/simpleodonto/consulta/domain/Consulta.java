@@ -9,6 +9,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "consulta")
@@ -53,4 +54,16 @@ public class Consulta extends BaseEntity {
     @Column(name = "tipo_pago", length = 20)
     private TipoPago tipoPago;
 
+    /** Firma del paciente como PNG. Null si aún no firmó. */
+    @Lob
+    @Column(name = "firma_png")
+    private byte[] firmaPng;
+
+    /** Timestamp del momento en que el paciente guardó la firma. */
+    @Column(name = "firma_fecha")
+    private LocalDateTime firmaFecha;
+
+    /** Si != null, hay una solicitud de firma pendiente desde este timestamp. Se limpia al firmar o cancelar. */
+    @Column(name = "firma_solicitada_en")
+    private LocalDateTime firmaSolicitadaEn;
 }
