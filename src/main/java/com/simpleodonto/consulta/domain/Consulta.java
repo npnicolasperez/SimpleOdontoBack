@@ -54,9 +54,8 @@ public class Consulta extends BaseEntity {
     @Column(name = "tipo_pago", length = 20)
     private TipoPago tipoPago;
 
-    /** Firma del paciente como PNG. Null si aún no firmó. */
-    @Lob
-    @Column(name = "firma_png")
+    /** Firma del paciente como PNG. Null si aún no firmó. Se guarda como BYTEA (sin @Lob, que en Postgres usa OID y rompe fuera de transacción). */
+    @Column(name = "firma_png", columnDefinition = "BYTEA")
     private byte[] firmaPng;
 
     /** Timestamp del momento en que el paciente guardó la firma. */
