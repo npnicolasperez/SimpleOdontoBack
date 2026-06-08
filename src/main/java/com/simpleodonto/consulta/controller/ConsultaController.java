@@ -46,6 +46,14 @@ public class ConsultaController {
         return consultaService.listarPorPaciente(pacienteId, profesional);
     }
 
+    @GetMapping("/{id}")
+    public ConsultaResponse obtener(
+            @PathVariable Long id,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return consultaService.obtener(id, profesional);
+    }
+
     @PostMapping
     public ResponseEntity<ConsultaResponse> crear(
             @Valid @RequestBody ConsultaRequest req,

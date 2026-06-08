@@ -12,5 +12,7 @@ public record MovimientoResponse(
         BigDecimal monto,                 // lo que entra al profesional
         BigDecimal montoTotal,            // total de la práctica, null si no aplica
         Integer    porcentajeProfesional, // %, null si no aplica o es 100
-        String     estado                 // "CONFIRMADO" | "PENDIENTE" | null
+        String     estado,                // "CONFIRMADO" | "PENDIENTE" | null
+        Long       consultaId,            // id de la consulta origen (solo si origen="consulta")
+        Long       pacienteId             // id del paciente de la consulta (solo si origen="consulta")
 ) {}

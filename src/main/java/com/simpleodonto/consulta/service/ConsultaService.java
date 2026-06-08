@@ -45,6 +45,12 @@ public class ConsultaService {
     private final IngresoService            ingresoService;
     private final IngresoRepository         ingresoRepository;
 
+    public ConsultaResponse obtener(Long consultaId, Profesional profesional) {
+        Consulta consulta = consultaRepository.findByIdAndProfesionalId(consultaId, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Consulta no encontrada"));
+        return toResponse(consulta);
+    }
+
     public List<ConsultaResponse> listarPorPaciente(Long pacienteId, Profesional profesional) {
         var sort = Sort.by(Sort.Direction.DESC, "fecha").and(Sort.by(Sort.Direction.DESC, "dateCreated"));
         return consultaRepository.findByPacienteIdAndProfesionalId(pacienteId, profesional.getId(), sort)

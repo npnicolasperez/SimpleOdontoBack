@@ -230,14 +230,16 @@ public class IngresoService {
             BigDecimal montoTotal = i.getConsulta() != null ? i.getConsulta().getMontoTotal() : null;
             Integer porcentaje    = i.getConsulta() != null ? i.getConsulta().getPorcentajeProfesional() : null;
             String origen = i.getConsulta() != null ? "consulta" : "libre";
+            Long consultaId = i.getConsulta() != null ? i.getConsulta().getId() : null;
+            Long pacienteId = (i.getConsulta() != null && i.getConsulta().getPaciente() != null) ? i.getConsulta().getPaciente().getId() : null;
             all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(), montoTotal, porcentaje,
-                    i.getEstado() != null ? i.getEstado().name() : null));
+                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
             all.add(new MovimientoResponse(e.getId(), "egreso", "egreso", e.getFecha(),
                     e.getDescripcion() != null ? e.getDescripcion() : "Sin descripción",
-                    e.getMonto(), null, null, null));
+                    e.getMonto(), null, null, null, null, null));
         }
 
         all.sort(Comparator.comparing(MovimientoResponse::fecha).reversed());
