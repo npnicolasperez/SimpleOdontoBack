@@ -56,6 +56,9 @@ public class GoogleCalendarService {
     private static final String REDIRECT_URI_PATH = "/api/calendar/callback";
     private static final String APPLICATION_NAME  = "HelloDoc";
     private static final long   STATE_TTL_MS      = 10L * 60 * 1000;
+    // Los LocalDateTime en la DB representan hora local del profesional (Argentina).
+    // No usamos ZoneId.systemDefault() porque el contenedor de Railway corre en UTC.
+    private static final ZoneId ZONA_PROFESIONAL  = ZoneId.of("America/Argentina/Buenos_Aires");
 
     private final ProfesionalRepository profesionalRepository;
     private final TurnoRepository       turnoRepository;
@@ -251,7 +254,7 @@ public class GoogleCalendarService {
                 } else if (event.getStart() != null && event.getStart().getDateTime() != null) {
                     LocalDateTime nuevaFecha = LocalDateTime.ofInstant(
                             new Date(event.getStart().getDateTime().getValue()).toInstant(),
-                            ZoneId.systemDefault());
+                            ZONA_PROFESIONAL);
                     LocalDateTime fechaAnterior = turno.getFechaHora();
                     if (!nuevaFecha.equals(fechaAnterior)) {
                         turno.setFechaHora(nuevaFecha);
@@ -354,9 +357,10 @@ public class GoogleCalendarService {
                 ? turno.getPaciente().getNombre() + " " + turno.getPaciente().getApellido()
                 : (turno.getNombrePacienteLibre() != null ? turno.getNombrePacienteLibre() : "Turno");
 
-        ZoneId zone = ZoneId.systemDefault();
-        long startMs = turno.getFechaHora().atZone(zone).toInstant().toEpochMilli();
-        long endMs   = turno.getFechaHora().plusMinutes(turno.getDuracionMinutos()).atZone(zone).toInstant().toEpochMilli();
+        // El LocalDateTime del turno representa hora local del profesional (Argentina),
+        // así que lo convertimos a UTC usando esa zona específica.
+        long startMs = turno.getFechaHora().atZone(ZONA_PROFESIONAL).toInstant().toEpochMilli();
+        long endMs   = turno.getFechaHora().plusMinutes(turno.getDuracionMinutos()).atZone(ZONA_PROFESIONAL).toInstant().toEpochMilli();
 
         return new Event()
                 .setSummary(titulo)
