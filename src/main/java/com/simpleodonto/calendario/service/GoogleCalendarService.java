@@ -177,15 +177,24 @@ public class GoogleCalendarService {
 
     @Transactional
     public void procesarWebhook(String channelId, String resourceState) {
-        if ("sync".equals(resourceState)) return;
+        log.info("[CalSync] Webhook recibido. channelId={}, resourceState={}", channelId, resourceState);
+        if ("sync".equals(resourceState)) {
+            log.info("[CalSync] Es webhook 'sync' inicial — se ignora.");
+            return;
+        }
 
-        profesionalRepository.findByGoogleCalendarChannelId(channelId).ifPresent(profesional -> {
-            try {
-                sincronizarCambios(profesional);
-            } catch (Exception e) {
-                log.error("Error procesando webhook para profesional {}: {}", profesional.getId(), e.getMessage());
-            }
-        });
+        var optProf = profesionalRepository.findByGoogleCalendarChannelId(channelId);
+        if (optProf.isEmpty()) {
+            log.warn("[CalSync] No se encontró profesional con channelId={}", channelId);
+            return;
+        }
+        Profesional profesional = optProf.get();
+        log.info("[CalSync] Profesional encontrado: id={}, email={}", profesional.getId(), profesional.getEmail());
+        try {
+            sincronizarCambios(profesional);
+        } catch (Exception e) {
+            log.error("[CalSync] Error procesando webhook para profesional {}: {}", profesional.getId(), e.getMessage(), e);
+        }
     }
 
     @Transactional
@@ -194,30 +203,61 @@ public class GoogleCalendarService {
         Calendar.Events.List request = service.events().list("primary")
                 .setSingleEvents(true);
 
-        if (profesional.getGoogleCalendarSyncToken() != null) {
+        boolean usandoSyncToken = profesional.getGoogleCalendarSyncToken() != null;
+        if (usandoSyncToken) {
             request.setSyncToken(profesional.getGoogleCalendarSyncToken());
+            log.info("[CalSync] Usando syncToken existente.");
         } else {
             request.setTimeMin(new com.google.api.client.util.DateTime(System.currentTimeMillis()));
+            log.info("[CalSync] Sin syncToken; usando timeMin=now (sólo eventos futuros).");
         }
 
-        Events events = request.execute();
+        Events events;
+        try {
+            events = request.execute();
+        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+            // Si el syncToken expiró (410 Gone), reintentar limpiando el token y usando timeMin.
+            if (e.getStatusCode() == 410) {
+                log.warn("[CalSync] syncToken expirado (410). Reintentando con timeMin=now.");
+                profesional.setGoogleCalendarSyncToken(null);
+                Calendar.Events.List retry = service.events().list("primary").setSingleEvents(true)
+                        .setTimeMin(new com.google.api.client.util.DateTime(System.currentTimeMillis()));
+                events = retry.execute();
+            } else {
+                throw e;
+            }
+        }
+        log.info("[CalSync] Items recibidos de Google: {}", events.getItems().size());
 
+        int actualizados = 0, eliminados = 0, sinMatch = 0;
         for (Event event : events.getItems()) {
-            turnoRepository.findByGoogleEventId(event.getId()).ifPresent(turno -> {
-                if ("cancelled".equals(event.getStatus())) {
-                    turnoRepository.delete(turno);
-                } else if (event.getStart() != null && event.getStart().getDateTime() != null) {
-                    LocalDateTime nuevaFecha = LocalDateTime.ofInstant(
-                            new Date(event.getStart().getDateTime().getValue()).toInstant(),
-                            ZoneId.systemDefault());
-                    turno.setFechaHora(nuevaFecha);
-                    turnoRepository.save(turno);
-                }
-            });
+            var optTurno = turnoRepository.findByGoogleEventId(event.getId());
+            if (optTurno.isEmpty()) {
+                sinMatch++;
+                log.debug("[CalSync] Sin match en holaDoc para eventId={}, status={}", event.getId(), event.getStatus());
+                continue;
+            }
+            Turno turno = optTurno.get();
+            if ("cancelled".equals(event.getStatus())) {
+                turnoRepository.delete(turno);
+                eliminados++;
+                log.info("[CalSync] Turno id={} eliminado (event cancelado en Google).", turno.getId());
+            } else if (event.getStart() != null && event.getStart().getDateTime() != null) {
+                LocalDateTime nuevaFecha = LocalDateTime.ofInstant(
+                        new Date(event.getStart().getDateTime().getValue()).toInstant(),
+                        ZoneId.systemDefault());
+                LocalDateTime fechaAnterior = turno.getFechaHora();
+                turno.setFechaHora(nuevaFecha);
+                turnoRepository.save(turno);
+                actualizados++;
+                log.info("[CalSync] Turno id={} actualizado: {} → {}", turno.getId(), fechaAnterior, nuevaFecha);
+            }
         }
+        log.info("[CalSync] Resumen: actualizados={}, eliminados={}, sinMatch={}", actualizados, eliminados, sinMatch);
 
         profesional.setGoogleCalendarSyncToken(events.getNextSyncToken());
         profesionalRepository.save(profesional);
+        log.info("[CalSync] Nuevo syncToken guardado: {}", events.getNextSyncToken() != null ? "sí" : "no");
     }
 
     @Scheduled(cron = "0 0 5 * * *")
