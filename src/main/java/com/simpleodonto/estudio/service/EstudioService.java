@@ -46,6 +46,9 @@ public class EstudioService {
     @Transactional
     public EstudioResponse crear(String nombre, String imagenTipo, byte[] imagenBytes,
                                  Double escala, Long pacienteId, Profesional profesional) {
+        if (pacienteId == null) {
+            throw new IllegalArgumentException("El estudio debe estar asociado a un paciente.");
+        }
         Paciente paciente = resolverPaciente(pacienteId, profesional);
         Estudio e = Estudio.builder()
                 .profesional(profesional)

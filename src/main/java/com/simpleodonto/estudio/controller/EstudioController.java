@@ -49,10 +49,10 @@ public class EstudioController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public EstudioResponse crear(
-            @RequestParam("imagen")                          MultipartFile imagen,
-            @RequestParam("nombre")                          String nombre,
-            @RequestParam(value = "escala",     defaultValue = "1.0") Double escala,
-            @RequestParam(value = "pacienteId", required = false)     Long   pacienteId,
+            @RequestParam("imagen")                                MultipartFile imagen,
+            @RequestParam("nombre")                                String nombre,
+            @RequestParam(value = "escala", defaultValue = "1.0")  Double escala,
+            @RequestParam("pacienteId")                            Long   pacienteId,
             HttpServletRequest request) throws IOException {
         Profesional profesional = tokenService.resolve(request);
         return estudioService.crear(nombre, imagen.getContentType(), imagen.getBytes(),
