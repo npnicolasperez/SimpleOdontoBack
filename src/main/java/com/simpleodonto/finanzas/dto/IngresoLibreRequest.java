@@ -12,6 +12,7 @@ public record IngresoLibreRequest(
         BigDecimal monto,
         TipoPago   tipoPago,
         Long       medioPagoId,
+        Long       obraSocialId,
         @NotNull(message = "El consultorio es obligatorio")
         Long       consultorioId
 ) {}

@@ -15,5 +15,6 @@ public record ConsultaRequest(
         Integer       porcentajeProfesional,
         TipoPago      tipoPago,
         Long          medioPagoId,
+        Long          obraSocialId,
         Boolean       pendienteCobro
 ) {}

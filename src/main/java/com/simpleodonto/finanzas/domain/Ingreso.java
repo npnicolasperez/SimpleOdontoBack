@@ -3,6 +3,7 @@ package com.simpleodonto.finanzas.domain;
 import com.simpleodonto.consulta.domain.Consulta;
 import com.simpleodonto.consulta.domain.TipoPago;
 import com.simpleodonto.consultorio.domain.Consultorio;
+import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.BaseEntity;
 import jakarta.persistence.*;
@@ -52,4 +53,9 @@ public class Ingreso extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "consultorio_id")
     private Consultorio consultorio;
+
+    /** Obra social asociada al ingreso. Obligatorio cuando tipoPago=OBRA_SOCIAL (validado a nivel app). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "obra_social_id")
+    private ObraSocial obraSocial;
 }

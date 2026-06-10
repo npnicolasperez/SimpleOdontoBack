@@ -10,8 +10,11 @@ import com.simpleodonto.consulta.repository.ConsultaArchivoRepository;
 import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
+import com.simpleodonto.consulta.domain.TipoPago;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.finanzas.service.IngresoService;
+import com.simpleodonto.obrasocial.domain.ObraSocial;
+import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -42,6 +45,7 @@ public class ConsultaService {
     private final ConsultaArchivoRepository consultaArchivoRepository;
     private final PacienteRepository        pacienteRepository;
     private final ConsultorioRepository     consultorioRepository;
+    private final ObraSocialRepository      obraSocialRepository;
     private final IngresoService            ingresoService;
     private final IngresoRepository         ingresoRepository;
 
@@ -79,6 +83,8 @@ public class ConsultaService {
                     .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
         }
 
+        ObraSocial obraSocial = resolverObraSocial(req.tipoPago(), req.obraSocialId(), profesional);
+
         Consulta consulta = Consulta.builder()
                 .paciente(paciente)
                 .profesional(profesional)
@@ -89,6 +95,7 @@ public class ConsultaService {
                 .porcentajeProfesional(req.porcentajeProfesional())
                 .monto(calcularMontoProfesional(req.montoTotal(), req.porcentajeProfesional()))
                 .tipoPago(req.tipoPago())
+                .obraSocial(obraSocial)
                 .build();
 
         Consulta saved = consultaRepository.save(consulta);
@@ -115,10 +122,24 @@ public class ConsultaService {
         consulta.setPorcentajeProfesional(req.porcentajeProfesional());
         consulta.setMonto(calcularMontoProfesional(req.montoTotal(), req.porcentajeProfesional()));
         consulta.setTipoPago(req.tipoPago());
+        consulta.setObraSocial(resolverObraSocial(req.tipoPago(), req.obraSocialId(), profesional));
 
         Consulta saved = consultaRepository.save(consulta);
         ingresoService.actualizarDesdeConsulta(saved, req.medioPagoId(), req.pendienteCobro());
         return toResponse(saved);
+    }
+
+    /**
+     * Resuelve la obra social de una consulta. Si tipoPago=OBRA_SOCIAL, obraSocialId es obligatorio.
+     * Para los demás tipos de pago, retorna null (no se asocia obra social al ingreso).
+     */
+    private ObraSocial resolverObraSocial(TipoPago tipoPago, Long obraSocialId, Profesional profesional) {
+        if (tipoPago != TipoPago.OBRA_SOCIAL) return null;
+        if (obraSocialId == null) {
+            throw new IllegalArgumentException("Seleccioná una obra social para esta consulta.");
+        }
+        return obraSocialRepository.findByIdAndProfesionalId(obraSocialId, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
     }
 
     /**
@@ -185,6 +206,8 @@ public class ConsultaService {
                 .map(a -> new ArchivoInfo(a.getId(), a.getNombre(), a.getTipo()))
                 .toList();
         boolean firmada = c.getFirmaPng() != null;
+        Long   osId     = c.getObraSocial() != null ? c.getObraSocial().getId()     : null;
+        String osNombre = c.getObraSocial() != null ? c.getObraSocial().getNombre() : null;
         return ingresoRepository.findByConsultaId(c.getId())
                 .map(ingreso -> new ConsultaResponse(
                         c.getId(),
@@ -202,6 +225,8 @@ public class ConsultaService {
                         c.getTipoPago(),
                         ingreso.getMedioPago() != null ? ingreso.getMedioPago().getId()     : null,
                         ingreso.getMedioPago() != null ? ingreso.getMedioPago().getNombre() : null,
+                        osId,
+                        osNombre,
                         ingreso.getEstado(),
                         c.getDateCreated(),
                         c.getLastUpdated(),
@@ -223,7 +248,10 @@ public class ConsultaService {
                         c.getPorcentajeProfesional(),
                         c.getMonto(),
                         c.getTipoPago(),
-                        null, null, null,
+                        null, null,
+                        osId,
+                        osNombre,
+                        null,
                         c.getDateCreated(),
                         c.getLastUpdated(),
                         archivos,

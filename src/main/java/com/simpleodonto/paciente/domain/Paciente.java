@@ -1,12 +1,13 @@
 package com.simpleodonto.paciente.domain;
 
-import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "paciente")
@@ -14,7 +15,7 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 public class Paciente extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -36,18 +37,14 @@ public class Paciente extends BaseEntity {
     private String email;
     private String direccion;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "obra_social_id")
-    private ObraSocial obraSocial;
-
-    @Column(name = "nro_afiliado")
-    private String nroAfiliado;
-
-    @Column(name = "plan_obra_social")
-    private String planObraSocial;
-
-    @Column(name = "titular_obra_social")
-    private String titularObraSocial;
+    /**
+     * Obras sociales del paciente. La de orden=0 es la "principal" — la que se
+     * pre-selecciona en consultas con tipoPago=OBRA_SOCIAL.
+     */
+    @OneToMany(mappedBy = "paciente", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("orden ASC")
+    @Builder.Default
+    private List<PacienteObraSocial> obrasSociales = new ArrayList<>();
 
     private String ocupacion;
 

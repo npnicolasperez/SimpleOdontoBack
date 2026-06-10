@@ -44,4 +44,15 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
             @Param("profesionalId") Long profesionalId,
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta);
+
+    @Query("SELECT i FROM Ingreso i " +
+           "WHERE i.profesional.id = :profesionalId " +
+           "AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.CONFIRMADO " +
+           "AND i.fecha >= :desde AND i.fecha < :hasta " +
+           "AND (:consultorioId IS NULL OR i.consultorio.id = :consultorioId)")
+    List<Ingreso> findConfirmadosByProfesionalIdAndRangoAndConsultorio(
+            @Param("profesionalId") Long profesionalId,
+            @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta,
+            @Param("consultorioId") Long consultorioId);
 }

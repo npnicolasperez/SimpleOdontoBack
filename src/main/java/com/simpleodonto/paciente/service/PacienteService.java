@@ -4,8 +4,10 @@ import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Odontograma;
 import com.simpleodonto.paciente.domain.Paciente;
+import com.simpleodonto.paciente.domain.PacienteObraSocial;
 import com.simpleodonto.paciente.dto.OdontogramaRequest;
 import com.simpleodonto.paciente.dto.OdontogramaResponse;
+import com.simpleodonto.paciente.dto.PacienteObraSocialDto;
 import com.simpleodonto.paciente.dto.PacienteRequest;
 import com.simpleodonto.paciente.dto.PacienteResponse;
 import com.simpleodonto.paciente.dto.PacienteStatsResponse;
@@ -19,9 +21,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,10 +63,7 @@ public class PacienteService {
                 .telefono(req.telefono())
                 .email(req.email())
                 .direccion(req.direccion())
-                .obraSocial(resolverObraSocial(req.obraSocialId(), profesional))
-                .nroAfiliado(req.nroAfiliado())
-                .planObraSocial(req.planObraSocial())
-                .titularObraSocial(req.titularObraSocial())
+                .obrasSociales(new ArrayList<>())
                 .ocupacion(req.ocupacion())
                 .grupoSanguineo(req.grupoSanguineo())
                 .alergias(req.alergias())
@@ -67,6 +73,7 @@ public class PacienteService {
                 .peso(req.peso())
                 .altura(req.altura())
                 .build();
+        aplicarObrasSociales(paciente, req.obrasSociales(), profesional);
         paciente = pacienteRepository.save(paciente);
 
         odontogramaRepository.save(Odontograma.builder()
@@ -91,10 +98,7 @@ public class PacienteService {
         p.setTelefono(req.telefono());
         p.setEmail(req.email());
         p.setDireccion(req.direccion());
-        p.setObraSocial(resolverObraSocial(req.obraSocialId(), profesional));
-        p.setNroAfiliado(req.nroAfiliado());
-        p.setPlanObraSocial(req.planObraSocial());
-        p.setTitularObraSocial(req.titularObraSocial());
+        aplicarObrasSociales(p, req.obrasSociales(), profesional);
         p.setOcupacion(req.ocupacion());
         p.setGrupoSanguineo(req.grupoSanguineo());
         p.setAlergias(req.alergias());
@@ -151,10 +155,59 @@ public class PacienteService {
 
     // ── helpers ─────────────────────────────────────────────────────────────
 
-    private ObraSocial resolverObraSocial(Long obraSocialId, Profesional profesional) {
-        if (obraSocialId == null) return null;
-        return obraSocialRepository.findByIdAndProfesionalId(obraSocialId, profesional.getId())
-                .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
+    /**
+     * Reconcilia la lista de obras sociales del paciente con la entrada del request.
+     * - Filtra entradas sin obraSocialId (UI puede mandar rows vacías).
+     * - Deduplica por obraSocialId (la primera ocurrencia gana).
+     * - Verifica que cada obraSocial pertenezca al profesional.
+     * - Asigna {@code orden} secuencial empezando en 0 (la primera de la lista = principal).
+     * <p>
+     * Importante: NO usa clear()+add() porque con orphanRemoval=true Hibernate ejecuta los INSERT
+     * antes de los DELETE en el mismo flush, lo que choca contra la unique constraint
+     * (paciente_id, obra_social_id) cuando una OS ya existente se "re-agrega". En su lugar hace un
+     * merge: reusa las asociaciones existentes (sólo actualizando sus campos), elimina las que ya
+     * no están y agrega únicamente las nuevas.
+     */
+    private void aplicarObrasSociales(Paciente paciente, List<PacienteObraSocialDto> entrada, Profesional profesional) {
+        Map<Long, PacienteObraSocialDto> deseado = new LinkedHashMap<>();
+        if (entrada != null) {
+            for (PacienteObraSocialDto dto : entrada) {
+                if (dto == null || dto.obraSocialId() == null) continue;
+                deseado.putIfAbsent(dto.obraSocialId(), dto);
+            }
+        }
+
+        Map<Long, PacienteObraSocial> existentes = paciente.getObrasSociales().stream()
+                .collect(Collectors.toMap(pos -> pos.getObraSocial().getId(), pos -> pos, (a, b) -> a));
+
+        // Quitar las asociaciones existentes que ya no están en la entrada → orphan removal las borra
+        paciente.getObrasSociales().removeIf(pos -> !deseado.containsKey(pos.getObraSocial().getId()));
+
+        // Actualizar las que siguen + agregar las nuevas, asignando orden secuencial
+        int orden = 0;
+        for (Map.Entry<Long, PacienteObraSocialDto> e : deseado.entrySet()) {
+            Long osId = e.getKey();
+            PacienteObraSocialDto dto = e.getValue();
+            PacienteObraSocial existente = existentes.get(osId);
+            if (existente != null) {
+                existente.setNroAfiliado(dto.nroAfiliado());
+                existente.setPlan(dto.plan());
+                existente.setTitular(dto.titular());
+                existente.setOrden(orden);
+            } else {
+                ObraSocial os = obraSocialRepository.findByIdAndProfesionalId(osId, profesional.getId())
+                        .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada: " + osId));
+                paciente.getObrasSociales().add(PacienteObraSocial.builder()
+                        .paciente(paciente)
+                        .obraSocial(os)
+                        .nroAfiliado(dto.nroAfiliado())
+                        .plan(dto.plan())
+                        .titular(dto.titular())
+                        .orden(orden)
+                        .build());
+            }
+            orden++;
+        }
     }
 
     private Paciente findOwned(Long id, Profesional profesional) {
@@ -168,14 +221,20 @@ public class PacienteService {
     }
 
     private PacienteResponse toResponse(Paciente p) {
-        ObraSocial os = p.getObraSocial();
+        List<PacienteObraSocialDto> osDtos = p.getObrasSociales() == null
+                ? Collections.emptyList()
+                : p.getObrasSociales().stream()
+                    .map(pos -> new PacienteObraSocialDto(
+                            pos.getObraSocial().getId(),
+                            pos.getObraSocial().getNombre(),
+                            pos.getNroAfiliado(),
+                            pos.getPlan(),
+                            pos.getTitular()))
+                    .toList();
         return new PacienteResponse(
                 p.getId(), p.getNombre(), p.getApellido(), p.getDni(),
                 p.getFechaNac(), p.getTelefono(), p.getEmail(), p.getDireccion(),
-                os != null ? os.getId()     : null,
-                os != null ? os.getNombre() : null,
-                p.getNroAfiliado(),
-                p.getPlanObraSocial(), p.getTitularObraSocial(),
+                osDtos,
                 p.getOcupacion(), p.getGrupoSanguineo(),
                 p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),
                 p.getAntecedentesFamiliares(), p.getPeso(), p.getAltura(),

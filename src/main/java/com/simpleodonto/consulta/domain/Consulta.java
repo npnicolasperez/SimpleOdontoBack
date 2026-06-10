@@ -1,6 +1,7 @@
 package com.simpleodonto.consulta.domain;
 
 import com.simpleodonto.consultorio.domain.Consultorio;
+import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.BaseEntity;
@@ -53,6 +54,11 @@ public class Consulta extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_pago", length = 20)
     private TipoPago tipoPago;
+
+    /** Obra social asociada a esta consulta. Obligatorio cuando tipoPago=OBRA_SOCIAL (validado a nivel app). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "obra_social_id")
+    private ObraSocial obraSocial;
 
     /** Firma del paciente como PNG. Null si aún no firmó. Se guarda como BYTEA (sin @Lob, que en Postgres usa OID y rompe fuera de transacción). */
     @Column(name = "firma_png", columnDefinition = "BYTEA")

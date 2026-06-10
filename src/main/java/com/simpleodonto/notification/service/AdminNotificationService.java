@@ -45,8 +45,11 @@ public class AdminNotificationService {
         String rejectUrl    = baseUrl + "/api/auth/rechazar?token=" + URLEncoder.encode(rejectToken,  StandardCharsets.UTF_8);
 
         String subject = "Nuevo registro pendiente — holaDoc";
+        // URL a la sección "Público" del Google Auth Platform, para agregar el email como test user
+        // de OAuth (necesario mientras la app esté en modo Testing, hasta pasar verification).
+        String googleConsoleUrl = "https://console.cloud.google.com/auth/audience?project=simpleodonto";
         String html = """
-            <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
               <h2 style="color: #111;">Nuevo profesional pendiente de activación</h2>
               <p style="color: #555;">Se registró un nuevo profesional que está esperando tu aprobación:</p>
               <table style="border-collapse: collapse; margin-top: 12px;">
@@ -60,13 +63,26 @@ public class AdminNotificationService {
               <p style="margin-top: 24px; color: #888; font-size: 12px;">
                 Los links son válidos por 7 días. Si la cuenta ya fue procesada, los links no tienen efecto.
               </p>
+
+              <div style="margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                <div style="font-weight: 600; color: #92400e; font-size: 14px; margin-bottom: 8px;">⚠️ Recordatorio: Google Calendar test user</div>
+                <p style="color: #555; font-size: 13px; line-height: 1.5; margin: 0 0 12px;">
+                  Mientras la app esté en modo Testing en Google, para que este profesional pueda conectar Google Calendar tenés que agregarlo como <strong>test user</strong>.
+                </p>
+                <p style="color: #555; font-size: 13px; line-height: 1.5; margin: 0 0 14px;">
+                  Email a agregar: <code style="background: #fff; padding: 2px 6px; border-radius: 3px; border: 1px solid #fde68a;">%s</code>
+                </p>
+                <a href="%s" style="display: inline-block; background: #fff; color: #92400e; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #fde68a;">Abrir Google Auth Platform →</a>
+              </div>
             </div>
             """.formatted(
                 escape(profesional.getNombre()),
                 escape(profesional.getApellido()),
                 escape(profesional.getEmail()),
                 approveUrl,
-                rejectUrl);
+                rejectUrl,
+                escape(profesional.getEmail()),
+                googleConsoleUrl);
 
         boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
         if (ok) {

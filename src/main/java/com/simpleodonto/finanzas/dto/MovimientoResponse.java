@@ -14,5 +14,7 @@ public record MovimientoResponse(
         Integer    porcentajeProfesional, // %, null si no aplica o es 100
         String     estado,                // "CONFIRMADO" | "PENDIENTE" | null
         Long       consultaId,            // id de la consulta origen (solo si origen="consulta")
-        Long       pacienteId             // id del paciente de la consulta (solo si origen="consulta")
+        Long       pacienteId,            // id del paciente de la consulta (solo si origen="consulta")
+        Long       obraSocialId,          // id de la obra social (solo si tipoPago=OBRA_SOCIAL)
+        String     obraSocialNombre       // nombre de la obra social (solo si tipoPago=OBRA_SOCIAL)
 ) {}

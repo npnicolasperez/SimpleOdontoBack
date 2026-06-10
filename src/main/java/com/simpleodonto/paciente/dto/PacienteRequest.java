@@ -3,6 +3,7 @@ package com.simpleodonto.paciente.dto;
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public record PacienteRequest(
         @NotBlank String nombre,
@@ -12,10 +13,7 @@ public record PacienteRequest(
         String telefono,
         String email,
         String direccion,
-        Long obraSocialId,
-        String nroAfiliado,
-        String planObraSocial,
-        String titularObraSocial,
+        List<PacienteObraSocialDto> obrasSociales,
         String ocupacion,
         String grupoSanguineo,
         String alergias,

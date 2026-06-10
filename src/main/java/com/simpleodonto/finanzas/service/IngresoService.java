@@ -1,12 +1,15 @@
 package com.simpleodonto.finanzas.service;
 
 import com.simpleodonto.consulta.domain.Consulta;
+import com.simpleodonto.consulta.domain.TipoPago;
+import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
 import com.simpleodonto.finanzas.domain.Egreso;
 import com.simpleodonto.finanzas.domain.EstadoIngreso;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.finanzas.domain.MedioPago;
+import com.simpleodonto.finanzas.dto.EstadisticaAnualDto;
 import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
 import com.simpleodonto.finanzas.dto.IngresoResponse;
@@ -14,6 +17,8 @@ import com.simpleodonto.finanzas.dto.MovimientoResponse;
 import com.simpleodonto.finanzas.repository.EgresoRepository;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.finanzas.repository.MedioPagoRepository;
+import com.simpleodonto.obrasocial.domain.ObraSocial;
+import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +46,8 @@ public class IngresoService {
     private final EgresoRepository      egresoRepository;
     private final MedioPagoRepository   medioPagoRepository;
     private final ConsultorioRepository consultorioRepository;
+    private final ConsultaRepository    consultaRepository;
+    private final ObraSocialRepository  obraSocialRepository;
 
     @Transactional
     public void crearDesdeConsulta(Consulta consulta, Long medioPagoId, Boolean pendienteCobro) {
@@ -52,6 +59,7 @@ public class IngresoService {
                 .estado(resolverEstado(pendienteCobro, consulta.getMonto()))
                 .tipoPago(consulta.getTipoPago())
                 .medioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()))
+                .obraSocial(consulta.getObraSocial())
                 .consultorio(consulta.getConsultorio())
                 .build();
         ingresoRepository.save(ingreso);
@@ -65,6 +73,7 @@ public class IngresoService {
             ingreso.setEstado(resolverEstado(pendienteCobro, consulta.getMonto()));
             ingreso.setTipoPago(consulta.getTipoPago());
             ingreso.setMedioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()));
+            ingreso.setObraSocial(consulta.getObraSocial());
             ingreso.setConsultorio(consulta.getConsultorio());
             ingresoRepository.save(ingreso);
         });
@@ -107,6 +116,7 @@ public class IngresoService {
     public IngresoResponse crearLibre(Profesional profesional, IngresoLibreRequest req) {
         Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(req.consultorioId(), profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
+        ObraSocial obraSocial = resolverObraSocial(req.tipoPago(), req.obraSocialId(), profesional);
         Ingreso ingreso = Ingreso.builder()
                 .fecha(LocalDate.now())
                 .consulta(null)
@@ -116,9 +126,22 @@ public class IngresoService {
                 .estado(estadoDesde(req.monto()))
                 .tipoPago(req.tipoPago())
                 .medioPago(resolverMedioPago(req.medioPagoId(), profesional))
+                .obraSocial(obraSocial)
                 .consultorio(consultorio)
                 .build();
         return toResponse(ingresoRepository.save(ingreso));
+    }
+
+    /**
+     * Resuelve la obra social de un ingreso libre. Si tipoPago=OBRA_SOCIAL, obraSocialId es obligatorio.
+     */
+    private ObraSocial resolverObraSocial(TipoPago tipoPago, Long obraSocialId, Profesional profesional) {
+        if (tipoPago != TipoPago.OBRA_SOCIAL) return null;
+        if (obraSocialId == null) {
+            throw new IllegalArgumentException("Seleccioná una obra social para este ingreso.");
+        }
+        return obraSocialRepository.findByIdAndProfesionalId(obraSocialId, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
     }
 
     public List<IngresoResponse> listar(Profesional profesional, YearMonth ym) {
@@ -232,14 +255,16 @@ public class IngresoService {
             String origen = i.getConsulta() != null ? "consulta" : "libre";
             Long consultaId = i.getConsulta() != null ? i.getConsulta().getId() : null;
             Long pacienteId = (i.getConsulta() != null && i.getConsulta().getPaciente() != null) ? i.getConsulta().getPaciente().getId() : null;
+            Long   osId     = i.getObraSocial() != null ? i.getObraSocial().getId()     : null;
+            String osNombre = i.getObraSocial() != null ? i.getObraSocial().getNombre() : null;
             all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(), montoTotal, porcentaje,
-                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId));
+                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
             all.add(new MovimientoResponse(e.getId(), "egreso", "egreso", e.getFecha(),
                     e.getDescripcion() != null ? e.getDescripcion() : "Sin descripción",
-                    e.getMonto(), null, null, null, null, null));
+                    e.getMonto(), null, null, null, null, null, null, null));
         }
 
         all.sort(Comparator.comparing(MovimientoResponse::fecha).reversed());
@@ -275,10 +300,62 @@ public class IngresoService {
                 i.getTipoPago(),
                 i.getMedioPago()   != null ? i.getMedioPago().getId()      : null,
                 i.getMedioPago()   != null ? i.getMedioPago().getNombre()  : null,
+                i.getObraSocial()  != null ? i.getObraSocial().getId()     : null,
+                i.getObraSocial()  != null ? i.getObraSocial().getNombre() : null,
                 i.getConsultorio() != null ? i.getConsultorio().getId()    : null,
                 i.getConsultorio() != null ? i.getConsultorio().getNombre(): null,
                 i.getFecha(),
                 i.getDateCreated()
         );
+    }
+
+    /**
+     * Estadísticas mensuales para los últimos 12 meses (incluido el mes actual).
+     * Cada fila trae: total de ingresos CONFIRMADOS, promedio de monto cobrado por consulta y cantidad de consultas.
+     * Los meses sin actividad vienen con valores en 0 (no se omiten) para que el gráfico no tenga huecos.
+     */
+    @Transactional(readOnly = true)
+    public List<EstadisticaAnualDto> getEstadisticasUltimos12Meses(Profesional profesional, Long consultorioId) {
+        Long profId = profesional.getId();
+        LocalDate hoy   = LocalDate.now();
+        LocalDate desde = hoy.withDayOfMonth(1).minusMonths(11);
+        LocalDate hasta = hoy.withDayOfMonth(1).plusMonths(1);
+
+        // Ingresos confirmados por mes (opcionalmente filtrados por consultorio)
+        List<Ingreso> ingresos = ingresoRepository.findConfirmadosByProfesionalIdAndRangoAndConsultorio(profId, desde, hasta, consultorioId);
+        java.util.Map<YearMonth, BigDecimal> ingresosPorMes = new java.util.HashMap<>();
+        for (Ingreso i : ingresos) {
+            if (i.getFecha() == null) continue;
+            YearMonth ym = YearMonth.from(i.getFecha());
+            BigDecimal monto = i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO;
+            ingresosPorMes.merge(ym, monto, BigDecimal::add);
+        }
+
+        // Consultas del rango — usamos el monto del profesional (lo que efectivamente cobra) para el promedio.
+        List<Consulta> consultas = consultaRepository.findByProfesionalIdAndFechaBetweenAndConsultorio(profId, desde, hasta, consultorioId);
+        java.util.Map<YearMonth, BigDecimal> sumaMontosPorMes = new java.util.HashMap<>();
+        java.util.Map<YearMonth, Long>       cantidadPorMes   = new java.util.HashMap<>();
+        for (Consulta c : consultas) {
+            if (c.getFecha() == null) continue;
+            YearMonth ym = YearMonth.from(c.getFecha());
+            BigDecimal monto = c.getMonto() != null ? c.getMonto() : BigDecimal.ZERO;
+            sumaMontosPorMes.merge(ym, monto, BigDecimal::add);
+            cantidadPorMes.merge(ym, 1L, Long::sum);
+        }
+
+        List<EstadisticaAnualDto> resultado = new ArrayList<>(12);
+        YearMonth actual = YearMonth.from(desde);
+        YearMonth fin    = YearMonth.from(hoy);
+        while (!actual.isAfter(fin)) {
+            BigDecimal totalIngresos = ingresosPorMes.getOrDefault(actual, BigDecimal.ZERO);
+            long cant = cantidadPorMes.getOrDefault(actual, 0L);
+            BigDecimal sumaMontos = sumaMontosPorMes.getOrDefault(actual, BigDecimal.ZERO);
+            BigDecimal promedio = cant > 0
+                    ? sumaMontos.divide(BigDecimal.valueOf(cant), 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            resultado.add(new EstadisticaAnualDto(actual.getYear(), actual.getMonthValue(), totalIngresos, promedio, cant));
+            actual = actual.plusMonths(1);
+        }
+        return resultado;
     }
 }

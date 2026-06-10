@@ -33,7 +33,6 @@ public interface PacienteRepository extends JpaRepository<Paciente, Long> {
                           Pageable pageable);
 
     Optional<Paciente> findByIdAndProfesionalId(Long id, Long profesionalId);
-    boolean existsByObraSocialId(Long obraSocialId);
 
     @Query("""
         SELECT COUNT(DISTINCT p.id) FROM Paciente p
@@ -44,9 +43,9 @@ public interface PacienteRepository extends JpaRepository<Paciente, Long> {
     long countPacientesNoVolvieronDesde(@Param("profId") Long profId, @Param("fechaCorte") LocalDate fechaCorte);
 
     @Query("""
-        SELECT os.nombre FROM Paciente p JOIN p.obraSocial os
-        WHERE p.profesional.id = :profId
-        GROUP BY os.nombre ORDER BY COUNT(p) DESC
+        SELECT pos.obraSocial.nombre FROM PacienteObraSocial pos
+        WHERE pos.paciente.profesional.id = :profId
+        GROUP BY pos.obraSocial.nombre ORDER BY COUNT(DISTINCT pos.paciente.id) DESC
         """)
     List<String> findTopObraSociales(@Param("profId") Long profId, Pageable pageable);
 }

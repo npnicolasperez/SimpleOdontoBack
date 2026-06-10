@@ -18,6 +18,8 @@ public record IngresoResponse(
         TipoPago      tipoPago,
         Long          medioPagoId,
         String        medioPagoNombre,
+        Long          obraSocialId,
+        String        obraSocialNombre,
         Long          consultorioId,
         String        consultorioNombre,
         LocalDate     fecha,

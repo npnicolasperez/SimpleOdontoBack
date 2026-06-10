@@ -1,5 +1,6 @@
 package com.simpleodonto.finanzas.controller;
 
+import com.simpleodonto.finanzas.dto.EstadisticaAnualDto;
 import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
 import com.simpleodonto.finanzas.dto.IngresoResponse;
@@ -71,5 +72,13 @@ public class FinanzasController {
             HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
         ingresoService.eliminarLibre(id, profesional);
+    }
+
+    @GetMapping("/estadisticas-anuales")
+    public List<EstadisticaAnualDto> estadisticasAnuales(
+            @RequestParam(required = false) Long consultorioId,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return ingresoService.getEstadisticasUltimos12Meses(profesional, consultorioId);
     }
 }

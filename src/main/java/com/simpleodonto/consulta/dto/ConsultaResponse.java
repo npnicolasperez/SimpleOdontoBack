@@ -24,6 +24,8 @@ public record ConsultaResponse(
         TipoPago        tipoPago,
         Long            medioPagoId,
         String          medioPagoNombre,
+        Long            obraSocialId,
+        String          obraSocialNombre,
         EstadoIngreso   estadoIngreso,
         LocalDateTime   dateCreated,
         LocalDateTime   lastUpdated,

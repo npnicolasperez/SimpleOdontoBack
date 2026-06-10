@@ -28,6 +28,17 @@ public interface ConsultaRepository extends JpaRepository<Consulta, Long> {
 
     @Query("""
         SELECT c FROM Consulta c
+        WHERE c.profesional.id = :profId
+          AND c.fecha >= :desde AND c.fecha < :hasta
+          AND (:consultorioId IS NULL OR c.consultorio.id = :consultorioId)
+        """)
+    List<Consulta> findByProfesionalIdAndFechaBetweenAndConsultorio(@Param("profId") Long profId,
+                                                                    @Param("desde") LocalDate desde,
+                                                                    @Param("hasta") LocalDate hasta,
+                                                                    @Param("consultorioId") Long consultorioId);
+
+    @Query("""
+        SELECT c FROM Consulta c
         WHERE c.profesional.id = :profesionalId
           AND (LOWER(c.paciente.apellido) LIKE LOWER(CONCAT('%', :buscar, '%'))
             OR LOWER(c.paciente.nombre)   LIKE LOWER(CONCAT('%', :buscar, '%'))
