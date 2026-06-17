@@ -18,8 +18,6 @@ public record ConsultaResponse(
         String          consultorioNombre,
         LocalDate       fecha,
         String          descripcion,
-        BigDecimal      montoTotal,
-        Integer         porcentajeProfesional,
         BigDecimal      monto,
         TipoPago        tipoPago,
         Long            medioPagoId,
@@ -27,6 +25,9 @@ public record ConsultaResponse(
         Long            obraSocialId,
         String          obraSocialNombre,
         EstadoIngreso   estadoIngreso,
+        // Si != null, este ingreso fue cerrado por un cobro batch de OS. El front lo usa para mostrar
+        // un badge "Parte de cobro de OS" en la historia clínica.
+        Long            cobroObraSocialId,
         LocalDateTime   dateCreated,
         LocalDateTime   lastUpdated,
         List<ArchivoInfo> archivos,

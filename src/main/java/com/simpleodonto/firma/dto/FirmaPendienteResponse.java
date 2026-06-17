@@ -10,5 +10,5 @@ public record FirmaPendienteResponse(
         String     pacienteApellido,
         LocalDate  fecha,
         String     descripcion,
-        BigDecimal montoTotal
+        BigDecimal monto
 ) {}

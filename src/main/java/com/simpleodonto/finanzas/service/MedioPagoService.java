@@ -3,6 +3,7 @@ package com.simpleodonto.finanzas.service;
 import com.simpleodonto.finanzas.domain.MedioPago;
 import com.simpleodonto.finanzas.dto.MedioPagoRequest;
 import com.simpleodonto.finanzas.dto.MedioPagoResponse;
+import com.simpleodonto.finanzas.repository.CobroObraSocialRepository;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.finanzas.repository.MedioPagoRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -17,8 +18,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MedioPagoService {
 
-    private final MedioPagoRepository medioPagoRepository;
-    private final IngresoRepository   ingresoRepository;
+    private final MedioPagoRepository         medioPagoRepository;
+    private final IngresoRepository           ingresoRepository;
+    private final CobroObraSocialRepository   cobroObraSocialRepository;
 
     public List<MedioPagoResponse> listar(Profesional profesional) {
         return medioPagoRepository.findByProfesionalId(profesional.getId())
@@ -40,6 +42,8 @@ public class MedioPagoService {
                 .orElseThrow(() -> new EntityNotFoundException("Medio de pago no encontrado"));
         if (ingresoRepository.existsByMedioPagoId(id))
             throw new IllegalStateException("No se puede eliminar el medio de pago porque tiene ingresos asociados.");
+        if (cobroObraSocialRepository.existsByMedioPagoId(id))
+            throw new IllegalStateException("No se puede eliminar el medio de pago porque tiene cobros de OS asociados.");
         medioPagoRepository.delete(mp);
     }
 

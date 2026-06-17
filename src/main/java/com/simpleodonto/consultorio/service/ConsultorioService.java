@@ -5,6 +5,7 @@ import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.dto.ConsultorioRequest;
 import com.simpleodonto.consultorio.dto.ConsultorioResponse;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
+import com.simpleodonto.finanzas.repository.CobroObraSocialRepository;
 import com.simpleodonto.finanzas.repository.EgresoRepository;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -19,10 +20,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ConsultorioService {
 
-    private final ConsultorioRepository consultorioRepository;
-    private final ConsultaRepository    consultaRepository;
-    private final IngresoRepository     ingresoRepository;
-    private final EgresoRepository      egresoRepository;
+    private final ConsultorioRepository      consultorioRepository;
+    private final ConsultaRepository         consultaRepository;
+    private final IngresoRepository          ingresoRepository;
+    private final EgresoRepository           egresoRepository;
+    private final CobroObraSocialRepository  cobroObraSocialRepository;
 
     public List<ConsultorioResponse> listar(Profesional profesional) {
         return consultorioRepository.findByProfesionalId(profesional.getId())
@@ -50,6 +52,8 @@ public class ConsultorioService {
             throw new IllegalStateException("No se puede eliminar el consultorio porque tiene ingresos asociados.");
         if (egresoRepository.existsByConsultorioId(id))
             throw new IllegalStateException("No se puede eliminar el consultorio porque tiene egresos asociados.");
+        if (cobroObraSocialRepository.existsByConsultorioId(id))
+            throw new IllegalStateException("No se puede eliminar el consultorio porque tiene cobros de obra social asociados.");
         consultorioRepository.delete(consultorio);
     }
 

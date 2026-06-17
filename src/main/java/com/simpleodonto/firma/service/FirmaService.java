@@ -53,7 +53,7 @@ public class FirmaService {
                 c.getPaciente() != null ? c.getPaciente().getApellido() : null,
                 c.getFecha(),
                 c.getDescripcion(),
-                c.getMontoTotal()
+                c.getMonto()
         ));
     }
 

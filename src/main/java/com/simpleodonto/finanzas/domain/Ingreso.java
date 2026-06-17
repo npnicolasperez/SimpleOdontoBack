@@ -58,4 +58,12 @@ public class Ingreso extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "obra_social_id")
     private ObraSocial obraSocial;
+
+    /**
+     * Cobro de OS que cerró este ingreso. Null hasta que el profesional registre el cobro batch.
+     * Cuando se setea, el ingreso pasa a CONFIRMADO. Si se elimina el cobro, vuelve a null y a PENDIENTE.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cobro_obra_social_id")
+    private CobroObraSocial cobroObraSocial;
 }

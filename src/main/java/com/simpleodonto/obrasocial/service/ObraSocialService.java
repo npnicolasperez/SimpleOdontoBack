@@ -3,6 +3,7 @@ package com.simpleodonto.obrasocial.service;
 import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.obrasocial.dto.ObraSocialRequest;
 import com.simpleodonto.obrasocial.dto.ObraSocialResponse;
+import com.simpleodonto.finanzas.repository.CobroObraSocialRepository;
 import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.repository.PacienteObraSocialRepository;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -19,6 +20,7 @@ public class ObraSocialService {
 
     private final ObraSocialRepository         obraSocialRepository;
     private final PacienteObraSocialRepository pacienteObraSocialRepository;
+    private final CobroObraSocialRepository    cobroObraSocialRepository;
 
     public List<ObraSocialResponse> listar(Profesional profesional) {
         return obraSocialRepository.findByProfesionalId(profesional.getId())
@@ -42,6 +44,8 @@ public class ObraSocialService {
                 .orElseThrow(() -> new EntityNotFoundException("Obra social no encontrada"));
         if (pacienteObraSocialRepository.existsByObraSocialId(id))
             throw new IllegalStateException("No se puede eliminar la obra social porque tiene pacientes asociados.");
+        if (cobroObraSocialRepository.existsByObraSocialId(id))
+            throw new IllegalStateException("No se puede eliminar la obra social porque tiene cobros registrados.");
         obraSocialRepository.delete(obraSocial);
     }
 

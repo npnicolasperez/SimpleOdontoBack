@@ -39,15 +39,7 @@ public class Consulta extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String descripcion;
 
-    /** Monto total de la práctica (lo que paga el paciente). */
-    @Column(name = "monto_total", precision = 12, scale = 2)
-    private BigDecimal montoTotal;
-
-    /** Porcentaje del total que le corresponde al profesional (0-100). */
-    @Column(name = "porcentaje_profesional")
-    private Integer porcentajeProfesional;
-
-    /** Lo que efectivamente cobra el profesional (montoTotal * porcentaje / 100). Es lo que va a Ingresos. */
+    /** Monto que cobra el profesional por la consulta. Es lo que va a Ingresos. */
     @Column(precision = 12, scale = 2)
     private BigDecimal monto;
 

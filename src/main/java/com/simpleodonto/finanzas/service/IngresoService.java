@@ -5,6 +5,7 @@ import com.simpleodonto.consulta.domain.TipoPago;
 import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.consultorio.domain.Consultorio;
 import com.simpleodonto.consultorio.repository.ConsultorioRepository;
+import com.simpleodonto.finanzas.domain.CobroObraSocial;
 import com.simpleodonto.finanzas.domain.Egreso;
 import com.simpleodonto.finanzas.domain.EstadoIngreso;
 import com.simpleodonto.finanzas.domain.Ingreso;
@@ -14,6 +15,7 @@ import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
 import com.simpleodonto.finanzas.dto.IngresoResponse;
 import com.simpleodonto.finanzas.dto.MovimientoResponse;
+import com.simpleodonto.finanzas.repository.CobroObraSocialRepository;
 import com.simpleodonto.finanzas.repository.EgresoRepository;
 import com.simpleodonto.finanzas.repository.IngresoRepository;
 import com.simpleodonto.finanzas.repository.MedioPagoRepository;
@@ -29,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -42,12 +43,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class IngresoService {
 
-    private final IngresoRepository     ingresoRepository;
-    private final EgresoRepository      egresoRepository;
-    private final MedioPagoRepository   medioPagoRepository;
-    private final ConsultorioRepository consultorioRepository;
-    private final ConsultaRepository    consultaRepository;
-    private final ObraSocialRepository  obraSocialRepository;
+    private final IngresoRepository         ingresoRepository;
+    private final EgresoRepository          egresoRepository;
+    private final MedioPagoRepository       medioPagoRepository;
+    private final ConsultorioRepository     consultorioRepository;
+    private final ConsultaRepository        consultaRepository;
+    private final ObraSocialRepository      obraSocialRepository;
+    private final CobroObraSocialRepository cobroRepository;
 
     @Transactional
     public void crearDesdeConsulta(Consulta consulta, Long medioPagoId, Boolean pendienteCobro) {
@@ -68,6 +70,35 @@ public class IngresoService {
     @Transactional
     public void actualizarDesdeConsulta(Consulta consulta, Long medioPagoId, Boolean pendienteCobro) {
         ingresoRepository.findByConsultaId(consulta.getId()).ifPresent(ingreso -> {
+            boolean estabaEnCobro = ingreso.getCobroObraSocial() != null;
+            boolean quierePendiente = Boolean.TRUE.equals(pendienteCobro);
+
+            // ESCAPE HATCH — el ingreso estaba dentro de un cobro batch Y el usuario activó "Dejar cobro
+            // pendiente" desde la consulta. La desvinculamos del cobro y la dejamos pendiente nuevamente.
+            // El cobro mismo no se toca (su montoRecibido queda como estaba; el usuario puede editarlo o
+            // eliminarlo aparte). monto vuelve a lo que dice la consulta (null para OS, número para particular).
+            if (estabaEnCobro && quierePendiente) {
+                ingreso.setCobroObraSocial(null);
+                ingreso.setEstado(EstadoIngreso.PENDIENTE);
+                ingreso.setMonto(consulta.getMonto());
+                ingreso.setFecha(consulta.getFecha() != null ? consulta.getFecha() : LocalDate.now());
+                ingreso.setTipoPago(consulta.getTipoPago());
+                ingreso.setMedioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()));
+                ingreso.setObraSocial(consulta.getObraSocial());
+                ingreso.setConsultorio(consulta.getConsultorio());
+                ingresoRepository.save(ingreso);
+                return;
+            }
+
+            // Si el ingreso ya fue cerrado por un cobro batch de OS y el usuario NO pidió volver a
+            // pendiente, ese cobro es la fuente de verdad. Solo refrescamos metadata leve.
+            if (estabaEnCobro) {
+                ingreso.setObraSocial(consulta.getObraSocial());
+                ingreso.setConsultorio(consulta.getConsultorio());
+                ingresoRepository.save(ingreso);
+                return;
+            }
+
             ingreso.setFecha(consulta.getFecha() != null ? consulta.getFecha() : LocalDate.now());
             ingreso.setMonto(consulta.getMonto());
             ingreso.setEstado(resolverEstado(pendienteCobro, consulta.getMonto()));
@@ -155,30 +186,52 @@ public class IngresoService {
         LocalDate desde = ym.atDay(1);
         LocalDate hasta = ym.plusMonths(1).atDay(1);
 
+        // Ingresos del mes excluyendo los cubiertos por un cobro batch — esos se contabilizan
+        // a través del cobro (ingreso virtual) para evitar doble conteo.
         List<Ingreso> ingresos = ingresoRepository.findByProfesionalIdAndMes(
+                profesional.getId(), desde, hasta).stream()
+                .filter(i -> i.getCobroObraSocial() == null)
+                .toList();
+
+        List<CobroObraSocial> cobros = cobroRepository.findByProfesionalIdAndMes(
                 profesional.getId(), desde, hasta);
 
-        BigDecimal confirmado = ingresos.stream()
+        BigDecimal confirmadoIngresos = ingresos.stream()
                 .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal confirmadoCobros = cobros.stream()
+                .map(c -> c.getMontoRecibido() != null ? c.getMontoRecibido() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal confirmado = confirmadoIngresos.add(confirmadoCobros);
 
         BigDecimal pendiente = ingresos.stream()
                 .filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        long cantConfirmada = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO).count();
+        long cantConfirmadaIngresos = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO).count();
+        long cantConfirmada = cantConfirmadaIngresos + cobros.size();
         long cantPendiente  = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE).count();
+        long cantTotal      = cantConfirmada + cantPendiente;
 
-        // Variación vs mes anterior
+        // Variación vs mes anterior — misma definición (ingresos sin cobro + cobros del mes anterior).
         YearMonth ymAnterior = ym.minusMonths(1);
+        LocalDate desdeAnt = ymAnterior.atDay(1);
+        LocalDate hastaAnt = ym.atDay(1);
         List<Ingreso> ingresosAnt = ingresoRepository.findByProfesionalIdAndMes(
-                profesional.getId(), ymAnterior.atDay(1), ym.atDay(1));
+                profesional.getId(), desdeAnt, hastaAnt).stream()
+                .filter(i -> i.getCobroObraSocial() == null)
+                .toList();
+        List<CobroObraSocial> cobrosAnt = cobroRepository.findByProfesionalIdAndMes(
+                profesional.getId(), desdeAnt, hastaAnt);
         BigDecimal confirmadoAnt = ingresosAnt.stream()
                 .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(cobrosAnt.stream()
+                        .map(c -> c.getMontoRecibido() != null ? c.getMontoRecibido() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add));
         Double variacionPct = null;
         if (confirmadoAnt.compareTo(BigDecimal.ZERO) > 0) {
             variacionPct = confirmado.subtract(confirmadoAnt)
@@ -188,7 +241,9 @@ public class IngresoService {
                     .doubleValue();
         }
 
-        // Consulta promedio: incluye ingresos vinculados a consultas (confirmados + pendientes con monto).
+        // Ticket promedio — se calcula sobre consultas con monto > 0 (particulares).
+        // Para OS no hay monto a nivel consulta, así que no contribuyen al promedio. Es el comportamiento
+        // que el profesional quiere: el "ticket" es el de pacientes particulares.
         List<Ingreso> consultasConMonto = ingresos.stream()
                 .filter(i -> i.getConsulta() != null && i.getMonto() != null && i.getMonto().compareTo(BigDecimal.ZERO) > 0)
                 .toList();
@@ -206,7 +261,7 @@ public class IngresoService {
                 confirmado.add(pendiente),
                 confirmado,
                 pendiente,
-                ingresos.size(),
+                cantTotal,
                 cantConfirmada,
                 cantPendiente,
                 variacionPct,
@@ -224,9 +279,26 @@ public class IngresoService {
                 ? ingresoRepository.findByProfesionalIdAndMesAndBuscar(profesional.getId(), desde, hasta, buscar)
                 : ingresoRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
 
+        // Excluimos ingresos cubiertos por cobro: aparecen como una sola fila del cobro más abajo.
+        ingresos = ingresos.stream()
+                .filter(i -> i.getCobroObraSocial() == null)
+                .toList();
+
         List<Egreso> egresos = hayBuscar
                 ? egresoRepository.findByProfesionalIdAndMesAndBuscar(profesional.getId(), desde, hasta, buscar)
                 : egresoRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
+
+        List<CobroObraSocial> cobros = cobroRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
+        if (hayBuscar) {
+            String b = buscar.toLowerCase();
+            cobros = cobros.stream()
+                    .filter(c -> {
+                        String os   = c.getObraSocial() != null ? c.getObraSocial().getNombre() : "";
+                        String desc = c.getDescripcion() != null ? c.getDescripcion() : "";
+                        return os.toLowerCase().contains(b) || desc.toLowerCase().contains(b);
+                    })
+                    .toList();
+        }
 
         if (consultorioId != null) {
             ingresos = ingresos.stream()
@@ -234,6 +306,9 @@ public class IngresoService {
                     .toList();
             egresos = egresos.stream()
                     .filter(e -> e.getConsultorio() != null && e.getConsultorio().getId().equals(consultorioId))
+                    .toList();
+            cobros = cobros.stream()
+                    .filter(c -> c.getConsultorio() != null && c.getConsultorio().getId().equals(consultorioId))
                     .toList();
         }
 
@@ -250,15 +325,23 @@ public class IngresoService {
                         .filter(s -> s != null && !s.isBlank()).toList())
                     : (i.getDescripcion() != null ? i.getDescripcion() : "Ingreso libre");
             String tipo = esPendiente ? "pendiente" : "ingreso";
-            BigDecimal montoTotal = i.getConsulta() != null ? i.getConsulta().getMontoTotal() : null;
-            Integer porcentaje    = i.getConsulta() != null ? i.getConsulta().getPorcentajeProfesional() : null;
             String origen = i.getConsulta() != null ? "consulta" : "libre";
             Long consultaId = i.getConsulta() != null ? i.getConsulta().getId() : null;
             Long pacienteId = (i.getConsulta() != null && i.getConsulta().getPaciente() != null) ? i.getConsulta().getPaciente().getId() : null;
             Long   osId     = i.getObraSocial() != null ? i.getObraSocial().getId()     : null;
             String osNombre = i.getObraSocial() != null ? i.getObraSocial().getNombre() : null;
-            all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(), montoTotal, porcentaje,
-                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre));
+            all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(),
+                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre, null, null));
+        }
+        // Cobros de OS: cada uno entra como UN movimiento de tipo ingreso. Origen "cobro_os" para que
+        // el front sepa que no se elimina desde acá (la eliminación vive en la pestaña Cobros).
+        for (CobroObraSocial c : cobros) {
+            if ("egreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
+            String osNombre = c.getObraSocial() != null ? c.getObraSocial().getNombre() : "Obra social";
+            String desc = "Cobro · " + osNombre;
+            Long   osId     = c.getObraSocial() != null ? c.getObraSocial().getId() : null;
+            all.add(new MovimientoResponse(c.getId(), "cobro_os", "ingreso", c.getFecha(), desc, c.getMontoRecibido(),
+                    EstadoIngreso.CONFIRMADO.name(), null, null, osId, osNombre, c.getId(), c.getFecha()));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
@@ -311,7 +394,8 @@ public class IngresoService {
 
     /**
      * Estadísticas mensuales para los últimos 12 meses (incluido el mes actual).
-     * Cada fila trae: total de ingresos CONFIRMADOS, promedio de monto cobrado por consulta y cantidad de consultas.
+     * Cada fila trae: total de ingresos CONFIRMADOS (incluyendo cobros de OS como ingresos virtuales),
+     * promedio de monto cobrado por consulta y cantidad de consultas.
      * Los meses sin actividad vienen con valores en 0 (no se omiten) para que el gráfico no tenga huecos.
      */
     @Transactional(readOnly = true)
@@ -321,8 +405,11 @@ public class IngresoService {
         LocalDate desde = hoy.withDayOfMonth(1).minusMonths(11);
         LocalDate hasta = hoy.withDayOfMonth(1).plusMonths(1);
 
-        // Ingresos confirmados por mes (opcionalmente filtrados por consultorio)
-        List<Ingreso> ingresos = ingresoRepository.findConfirmadosByProfesionalIdAndRangoAndConsultorio(profId, desde, hasta, consultorioId);
+        // Ingresos confirmados por mes — excluimos los cubiertos por cobro batch (se cuentan a través del cobro).
+        List<Ingreso> ingresos = ingresoRepository.findConfirmadosByProfesionalIdAndRangoAndConsultorio(
+                profId, desde, hasta, consultorioId).stream()
+                .filter(i -> i.getCobroObraSocial() == null)
+                .toList();
         java.util.Map<YearMonth, BigDecimal> ingresosPorMes = new java.util.HashMap<>();
         for (Ingreso i : ingresos) {
             if (i.getFecha() == null) continue;
@@ -331,7 +418,22 @@ public class IngresoService {
             ingresosPorMes.merge(ym, monto, BigDecimal::add);
         }
 
-        // Consultas del rango — usamos el monto del profesional (lo que efectivamente cobra) para el promedio.
+        // Cobros de OS del rango — sumamos como ingresos virtuales, filtrando por consultorio si aplica.
+        List<CobroObraSocial> cobros = cobroRepository.findByProfesionalIdAndMes(profId, desde, hasta);
+        if (consultorioId != null) {
+            cobros = cobros.stream()
+                    .filter(c -> c.getConsultorio() != null && c.getConsultorio().getId().equals(consultorioId))
+                    .toList();
+        }
+        for (CobroObraSocial c : cobros) {
+            if (c.getFecha() == null) continue;
+            YearMonth ym = YearMonth.from(c.getFecha());
+            BigDecimal monto = c.getMontoRecibido() != null ? c.getMontoRecibido() : BigDecimal.ZERO;
+            ingresosPorMes.merge(ym, monto, BigDecimal::add);
+        }
+
+        // Consultas del rango — para el promedio usamos el monto de la consulta (lo que cobra el profesional).
+        // Para OS la consulta no tiene monto, así que ese promedio refleja consultas particulares.
         List<Consulta> consultas = consultaRepository.findByProfesionalIdAndFechaBetweenAndConsultorio(profId, desde, hasta, consultorioId);
         java.util.Map<YearMonth, BigDecimal> sumaMontosPorMes = new java.util.HashMap<>();
         java.util.Map<YearMonth, Long>       cantidadPorMes   = new java.util.HashMap<>();

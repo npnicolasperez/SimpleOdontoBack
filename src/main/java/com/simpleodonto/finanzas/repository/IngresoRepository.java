@@ -55,4 +55,36 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
             @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta,
             @Param("consultorioId") Long consultorioId);
+
+    /**
+     * Ingresos PENDIENTES de una obra social puntual en un consultorio puntual (para el flow de
+     * "Registrar cobro de OS"). Cada cobro es por un único consultorio porque las OS pagan
+     * separado a cada consultorio del profesional.
+     */
+    @Query("""
+        SELECT i FROM Ingreso i
+        LEFT JOIN i.consulta c LEFT JOIN c.paciente p
+        WHERE i.profesional.id = :profesionalId
+          AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.PENDIENTE
+          AND i.obraSocial.id = :obraSocialId
+          AND i.consultorio.id = :consultorioId
+          AND i.cobroObraSocial IS NULL
+        ORDER BY i.fecha ASC, i.id ASC
+        """)
+    List<Ingreso> findPendientesByObraSocialYConsultorio(@Param("profesionalId") Long profesionalId,
+                                                         @Param("obraSocialId") Long obraSocialId,
+                                                         @Param("consultorioId") Long consultorioId);
+
+    List<Ingreso> findByCobroObraSocialId(Long cobroObraSocialId);
+
+    /** Ingresos PENDIENTES con tipoPago=PARTICULAR (para la pestaña Particular del flow de registrar cobros). */
+    @Query("""
+        SELECT i FROM Ingreso i
+        LEFT JOIN i.consulta c LEFT JOIN c.paciente p
+        WHERE i.profesional.id = :profesionalId
+          AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.PENDIENTE
+          AND i.tipoPago = com.simpleodonto.consulta.domain.TipoPago.PARTICULAR
+        ORDER BY i.fecha ASC, i.id ASC
+        """)
+    List<Ingreso> findPendientesParticulares(@Param("profesionalId") Long profesionalId);
 }
