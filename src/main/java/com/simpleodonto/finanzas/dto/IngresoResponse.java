@@ -22,6 +22,7 @@ public record IngresoResponse(
         String        obraSocialNombre,
         Long          consultorioId,
         String        consultorioNombre,
+        Long          cobroObraSocialId,
         LocalDate     fecha,
         LocalDateTime dateCreated
 ) {}

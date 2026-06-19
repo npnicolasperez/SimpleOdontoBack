@@ -120,6 +120,24 @@ public class GoogleCalendarService {
                 && !profesional.getGoogleCalendarRefreshToken().isBlank();
     }
 
+    /**
+     * Valida activamente el token contra Google con una llamada barata. Si Google rechaza el token
+     * (revocado / expirado), desconecta automáticamente y devuelve false. Es lo que el front llama
+     * desde /calendar/status — así el banner "Google Calendar no conectado" aparece al entrar a
+     * Turnos en vez de aparecer recién al fallar la creación del primer turno.
+     */
+    public boolean estaConectadoYValido(Profesional profesional) {
+        if (!estaConectado(profesional)) return false;
+        try {
+            Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
+            service.calendars().get("primary").execute();
+            return true;
+        } catch (Exception e) {
+            manejarExcepcionToken(e, profesional);
+            return estaConectado(profesional);
+        }
+    }
+
     // ── Eventos ────────────────────────────────────────────────────────────
 
     public String crearEvento(Profesional profesional, Turno turno) {

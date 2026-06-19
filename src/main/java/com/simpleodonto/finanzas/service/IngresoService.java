@@ -91,8 +91,11 @@ public class IngresoService {
             }
 
             // Si el ingreso ya fue cerrado por un cobro batch de OS y el usuario NO pidió volver a
-            // pendiente, ese cobro es la fuente de verdad. Solo refrescamos metadata leve.
+            // pendiente, el cobro es la fuente de verdad para estado/fecha. Pero el coseguro (monto +
+            // medio de pago) es ortogonal al cobro batch — lo dejamos editable post-cobro.
             if (estabaEnCobro) {
+                ingreso.setMonto(consulta.getMonto());
+                ingreso.setMedioPago(resolverMedioPago(medioPagoId, consulta.getProfesional()));
                 ingreso.setObraSocial(consulta.getObraSocial());
                 ingreso.setConsultorio(consulta.getConsultorio());
                 ingresoRepository.save(ingreso);
@@ -186,18 +189,21 @@ public class IngresoService {
         LocalDate desde = ym.atDay(1);
         LocalDate hasta = ym.plusMonths(1).atDay(1);
 
-        // Ingresos del mes excluyendo los cubiertos por un cobro batch — esos se contabilizan
-        // a través del cobro (ingreso virtual) para evitar doble conteo.
+        // Ahora tomamos TODOS los ingresos del mes — el monto del ingreso de OS representa el coseguro
+        // (lo que el paciente pagó al toque), que es ortogonal al cobro batch. El cobro batch suma su
+        // montoRecibido aparte. No hay doble conteo porque cada uno cubre cosas distintas.
         List<Ingreso> ingresos = ingresoRepository.findByProfesionalIdAndMes(
-                profesional.getId(), desde, hasta).stream()
-                .filter(i -> i.getCobroObraSocial() == null)
-                .toList();
+                profesional.getId(), desde, hasta);
 
         List<CobroObraSocial> cobros = cobroRepository.findByProfesionalIdAndMes(
                 profesional.getId(), desde, hasta);
 
+        // Regla por tipoPago:
+        //  - OBRA_SOCIAL: el monto del ingreso es el coseguro y SIEMPRE cuenta como confirmado
+        //    (entró el día de la consulta, independientemente del cobro batch que sigue pendiente).
+        //  - PARTICULAR / otros: cuenta como confirmado solo si estado=CONFIRMADO; PENDIENTE va a pendiente.
         BigDecimal confirmadoIngresos = ingresos.stream()
-                .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO)
+                .filter(i -> esConfirmadoEnFinanzas(i))
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal confirmadoCobros = cobros.stream()
@@ -205,28 +211,31 @@ public class IngresoService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         BigDecimal confirmado = confirmadoIngresos.add(confirmadoCobros);
 
+        // Solo los ingresos NO-OS con estado=PENDIENTE suman a "pendiente $X" (los OS son pendientes
+        // del cobro batch pero sin monto conocido, así que no aportan a esta suma).
         BigDecimal pendiente = ingresos.stream()
-                .filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE)
+                .filter(i -> i.getTipoPago() != TipoPago.OBRA_SOCIAL && i.getEstado() == EstadoIngreso.PENDIENTE)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        long cantConfirmadaIngresos = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO).count();
+        long cantConfirmadaIngresos = ingresos.stream().filter(this::esConfirmadoEnFinanzas).count();
         long cantConfirmada = cantConfirmadaIngresos + cobros.size();
-        long cantPendiente  = ingresos.stream().filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE).count();
+        // "Pendientes" cuenta TODOS los pendientes del cobro batch (OS sin cobro) + particulares pendientes.
+        long cantPendiente  = ingresos.stream()
+                .filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE && !esConfirmadoEnFinanzas(i))
+                .count();
         long cantTotal      = cantConfirmada + cantPendiente;
 
-        // Variación vs mes anterior — misma definición (ingresos sin cobro + cobros del mes anterior).
+        // Variación vs mes anterior — mismo criterio.
         YearMonth ymAnterior = ym.minusMonths(1);
         LocalDate desdeAnt = ymAnterior.atDay(1);
         LocalDate hastaAnt = ym.atDay(1);
         List<Ingreso> ingresosAnt = ingresoRepository.findByProfesionalIdAndMes(
-                profesional.getId(), desdeAnt, hastaAnt).stream()
-                .filter(i -> i.getCobroObraSocial() == null)
-                .toList();
+                profesional.getId(), desdeAnt, hastaAnt);
         List<CobroObraSocial> cobrosAnt = cobroRepository.findByProfesionalIdAndMes(
                 profesional.getId(), desdeAnt, hastaAnt);
         BigDecimal confirmadoAnt = ingresosAnt.stream()
-                .filter(i -> i.getEstado() == EstadoIngreso.CONFIRMADO)
+                .filter(this::esConfirmadoEnFinanzas)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)
                 .add(cobrosAnt.stream()
@@ -279,9 +288,15 @@ public class IngresoService {
                 ? ingresoRepository.findByProfesionalIdAndMesAndBuscar(profesional.getId(), desde, hasta, buscar)
                 : ingresoRepository.findByProfesionalIdAndMes(profesional.getId(), desde, hasta);
 
-        // Excluimos ingresos cubiertos por cobro: aparecen como una sola fila del cobro más abajo.
+        // Filtro: ingresos OS sin coseguro (monto null/0) que ya tienen cobro batch asignado se
+        // suprimen — el cobro batch los reemplaza en la lista de movimientos. Si hay coseguro, la
+        // fila sigue apareciendo aunque tenga cobro batch (representa el coseguro ya cobrado).
         ingresos = ingresos.stream()
-                .filter(i -> i.getCobroObraSocial() == null)
+                .filter(i -> {
+                    if (i.getCobroObraSocial() == null) return true;
+                    boolean tieneCoseguro = i.getMonto() != null && i.getMonto().compareTo(BigDecimal.ZERO) > 0;
+                    return tieneCoseguro;
+                })
                 .toList();
 
         List<Egreso> egresos = hayBuscar
@@ -314,24 +329,44 @@ public class IngresoService {
 
         List<MovimientoResponse> all = new ArrayList<>();
         for (Ingreso i : ingresos) {
-            boolean esPendiente = i.getEstado() == EstadoIngreso.PENDIENTE;
-            if ("egreso".equals(tipoFiltro)) continue;
-            if ("ingreso".equals(tipoFiltro) && esPendiente) continue;
-            if ("pendiente".equals(tipoFiltro) && !esPendiente) continue;
-            String desc = i.getConsulta() != null
+            boolean esOs = i.getTipoPago() == TipoPago.OBRA_SOCIAL;
+            boolean tieneCoseguro = i.getMonto() != null && i.getMonto().compareTo(BigDecimal.ZERO) > 0;
+            boolean osPendienteDeBatch = esOs && i.getCobroObraSocial() == null;
+
+            String descBase = i.getConsulta() != null
                     ? "Consulta · " + String.join(", ", java.util.stream.Stream.of(
                             i.getConsulta().getPaciente().getApellido(),
                             i.getConsulta().getPaciente().getNombre())
                         .filter(s -> s != null && !s.isBlank()).toList())
                     : (i.getDescripcion() != null ? i.getDescripcion() : "Ingreso libre");
-            String tipo = esPendiente ? "pendiente" : "ingreso";
             String origen = i.getConsulta() != null ? "consulta" : "libre";
             Long consultaId = i.getConsulta() != null ? i.getConsulta().getId() : null;
             Long pacienteId = (i.getConsulta() != null && i.getConsulta().getPaciente() != null) ? i.getConsulta().getPaciente().getId() : null;
             Long   osId     = i.getObraSocial() != null ? i.getObraSocial().getId()     : null;
             String osNombre = i.getObraSocial() != null ? i.getObraSocial().getNombre() : null;
-            all.add(new MovimientoResponse(i.getId(), origen, tipo, i.getFecha(), desc, i.getMonto(),
-                    i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre, null, null));
+            Long      cobroOsId    = i.getCobroObraSocial() != null ? i.getCobroObraSocial().getId()    : null;
+            LocalDate cobroOsFecha = i.getCobroObraSocial() != null ? i.getCobroObraSocial().getFecha() : null;
+
+            // Fila INGRESO: aparece cuando hay algo cobrado (coseguro o monto particular CONFIRMADO).
+            //   - OS con coseguro: una fila por el coseguro.
+            //   - PARTICULAR confirmado: una fila por el monto.
+            boolean mostrarIngreso = esOs ? tieneCoseguro : i.getEstado() == EstadoIngreso.CONFIRMADO;
+            if (mostrarIngreso && !"pendiente".equals(tipoFiltro) && !"egreso".equals(tipoFiltro)) {
+                String desc = esOs && tieneCoseguro ? descBase + " · coseguro" : descBase;
+                all.add(new MovimientoResponse(i.getId(), origen, "ingreso", i.getFecha(), desc, i.getMonto(),
+                        i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre, cobroOsId, cobroOsFecha));
+            }
+
+            // Fila PENDIENTE: aparece cuando la consulta está esperando el cobro batch de OS o un cobro particular.
+            //   - OS sin cobro batch: fila pendiente sin monto (la OS aún debe). Ortogonal a si tiene coseguro o no.
+            //   - PARTICULAR PENDIENTE: fila pendiente con su monto (lo que se va a cobrar).
+            boolean mostrarPendiente = esOs ? osPendienteDeBatch : i.getEstado() == EstadoIngreso.PENDIENTE;
+            if (mostrarPendiente && !"ingreso".equals(tipoFiltro) && !"egreso".equals(tipoFiltro)) {
+                // Para OS, la fila pendiente NO muestra monto del coseguro (ya está en la fila ingreso).
+                BigDecimal montoPendiente = esOs ? null : i.getMonto();
+                all.add(new MovimientoResponse(i.getId(), origen, "pendiente", i.getFecha(), descBase, montoPendiente,
+                        EstadoIngreso.PENDIENTE.name(), consultaId, pacienteId, osId, osNombre, null, null));
+            }
         }
         // Cobros de OS: cada uno entra como UN movimiento de tipo ingreso. Origen "cobro_os" para que
         // el front sepa que no se elimina desde acá (la eliminación vive en la pestaña Cobros).
@@ -364,6 +399,19 @@ public class IngresoService {
                 ? EstadoIngreso.CONFIRMADO : EstadoIngreso.PENDIENTE;
     }
 
+    /**
+     * Reglas de "cuenta como confirmado en finanzas":
+     *  - OBRA_SOCIAL: si tiene monto (coseguro), ese monto ya entró el día de la consulta → cuenta.
+     *    Si no hay monto, no aporta (la parte OS se cuenta vía el cobro batch).
+     *  - Otros tipos: solo cuenta si estado=CONFIRMADO.
+     */
+    private boolean esConfirmadoEnFinanzas(Ingreso i) {
+        if (i.getTipoPago() == TipoPago.OBRA_SOCIAL) {
+            return i.getMonto() != null && i.getMonto().compareTo(BigDecimal.ZERO) > 0;
+        }
+        return i.getEstado() == EstadoIngreso.CONFIRMADO;
+    }
+
     private MedioPago resolverMedioPago(Long medioPagoId, Profesional profesional) {
         if (medioPagoId == null) return null;
         return medioPagoRepository.findByIdAndProfesionalId(medioPagoId, profesional.getId()).orElse(null);
@@ -387,6 +435,7 @@ public class IngresoService {
                 i.getObraSocial()  != null ? i.getObraSocial().getNombre() : null,
                 i.getConsultorio() != null ? i.getConsultorio().getId()    : null,
                 i.getConsultorio() != null ? i.getConsultorio().getNombre(): null,
+                i.getCobroObraSocial() != null ? i.getCobroObraSocial().getId() : null,
                 i.getFecha(),
                 i.getDateCreated()
         );
@@ -405,10 +454,12 @@ public class IngresoService {
         LocalDate desde = hoy.withDayOfMonth(1).minusMonths(11);
         LocalDate hasta = hoy.withDayOfMonth(1).plusMonths(1);
 
-        // Ingresos confirmados por mes — excluimos los cubiertos por cobro batch (se cuentan a través del cobro).
-        List<Ingreso> ingresos = ingresoRepository.findConfirmadosByProfesionalIdAndRangoAndConsultorio(
-                profId, desde, hasta, consultorioId).stream()
-                .filter(i -> i.getCobroObraSocial() == null)
+        // Ingresos por mes: todos los que cuentan como confirmados en finanzas (coseguros OS + particulares CONFIRMADOS).
+        // El monto del ingreso de OS representa el coseguro; la parte OS se cuenta vía el cobro batch más abajo.
+        List<Ingreso> ingresos = ingresoRepository.findByProfesionalIdAndMes(profId, desde, hasta).stream()
+                .filter(i -> consultorioId == null
+                        || (i.getConsultorio() != null && i.getConsultorio().getId().equals(consultorioId)))
+                .filter(this::esConfirmadoEnFinanzas)
                 .toList();
         java.util.Map<YearMonth, BigDecimal> ingresosPorMes = new java.util.HashMap<>();
         for (Ingreso i : ingresos) {

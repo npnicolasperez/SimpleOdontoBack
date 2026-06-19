@@ -133,8 +133,10 @@ public class CobroObraSocialService {
         for (Ingreso ingreso : ingresos) {
             ingreso.setEstado(EstadoIngreso.CONFIRMADO);
             ingreso.setCobroObraSocial(cobro);
-            // ingreso.monto queda null a propósito: el monto vive a nivel cobro. Finanzas suma el cobro
-            // (como ingreso virtual) y excluye estos ingresos para no contar doble.
+            // OJO: NO tocamos ingreso.monto ni ingreso.medioPago. Si la consulta tenía coseguro, esos
+            // campos representan al coseguro (ya cobrado al paciente) y son independientes del cobro
+            // batch (que vive en CobroObraSocial). Finanzas suma el coseguro vía el ingreso y la parte
+            // OS vía el cobro batch — no hay doble conteo porque cada uno cubre cosas distintas.
         }
         ingresoRepository.saveAll(ingresos);
 

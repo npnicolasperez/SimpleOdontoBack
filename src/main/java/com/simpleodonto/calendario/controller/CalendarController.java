@@ -57,7 +57,9 @@ public class CalendarController {
     @GetMapping("/status")
     public Map<String, Boolean> status(HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
-        return Map.of("conectado", googleCalendarService.estaConectado(profesional));
+        // Validación activa contra Google. Si el token está revocado/expirado, el service
+        // desconecta automáticamente y este endpoint devuelve conectado=false.
+        return Map.of("conectado", googleCalendarService.estaConectadoYValido(profesional));
     }
 
     @DeleteMapping("/desconectar")
