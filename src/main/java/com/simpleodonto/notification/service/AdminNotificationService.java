@@ -2,18 +2,15 @@ package com.simpleodonto.notification.service;
 
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.AdminEmails;
-import com.simpleodonto.shared.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 /**
- * Servicio de alto nivel para notificar a los admins (vía email) sobre eventos del sistema.
+ * Notificaciones por email — admins y profesionales.
  * Todos los métodos son @Async — los callers no esperan ni reciben confirmación de envío.
  */
 @Service
@@ -23,14 +20,12 @@ public class AdminNotificationService {
 
     private final EmailService emailService;
     private final AdminEmails  adminEmails;
-    private final JwtUtil      jwtUtil;
 
-    @Value("${app.frontend-url}")
-    private String frontendUrl;
-
-    @Value("${app.base-url}")
-    private String baseUrl;
-
+    /**
+     * Avisa a los admins que un profesional se pre-registró. El admin no tiene que aprobar manualmente
+     * — el flow es: el profesional recibe link de pago, paga, MP dispara webhook, la cuenta se activa
+     * automáticamente. Este mail es solo informativo para tener visibilidad.
+     */
     @Async
     public void notifyNuevoPendiente(Profesional profesional) {
         var destinatarios = adminEmails.all();
@@ -39,30 +34,16 @@ public class AdminNotificationService {
             return;
         }
 
-        String approveToken = jwtUtil.generateActionToken(profesional.getEmail(), "approve");
-        String rejectToken  = jwtUtil.generateActionToken(profesional.getEmail(), "reject");
-        String approveUrl   = baseUrl + "/api/auth/aprobar?token="  + URLEncoder.encode(approveToken, StandardCharsets.UTF_8);
-        String rejectUrl    = baseUrl + "/api/auth/rechazar?token=" + URLEncoder.encode(rejectToken,  StandardCharsets.UTF_8);
-
-        String subject = "Nuevo registro pendiente — holaDoc";
-        // URL a la sección "Público" del Google Auth Platform, para agregar el email como test user
-        // de OAuth (necesario mientras la app esté en modo Testing, hasta pasar verification).
+        String subject = "Nuevo registro pendiente de pago — holaDoc";
         String googleConsoleUrl = "https://console.cloud.google.com/auth/audience?project=simpleodonto";
         String html = """
             <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
-              <h2 style="color: #111;">Nuevo profesional pendiente de activación</h2>
-              <p style="color: #555;">Se registró un nuevo profesional que está esperando tu aprobación:</p>
+              <h2 style="color: #111;">Nuevo profesional pre-registrado</h2>
+              <p style="color: #555;">Se registró un profesional. Le enviamos el link de pago de la suscripción; cuando complete el pago, la cuenta se activa automáticamente.</p>
               <table style="border-collapse: collapse; margin-top: 12px;">
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Nombre:</td><td><strong>%s %s</strong></td></tr>
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td>%s</td></tr>
               </table>
-              <div style="margin-top: 28px; display: flex; gap: 12px;">
-                <a href="%s" style="background: #111; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Aprobar</a>
-                <a href="%s" style="background: #fff; color: #111; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px; border: 1px solid #ddd;">Rechazar</a>
-              </div>
-              <p style="margin-top: 24px; color: #888; font-size: 12px;">
-                Los links son válidos por 7 días. Si la cuenta ya fue procesada, los links no tienen efecto.
-              </p>
 
               <div style="margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
                 <div style="font-weight: 600; color: #92400e; font-size: 14px; margin-bottom: 8px;">⚠️ Recordatorio: Google Calendar test user</div>
@@ -79,14 +60,53 @@ public class AdminNotificationService {
                 escape(profesional.getNombre()),
                 escape(profesional.getApellido()),
                 escape(profesional.getEmail()),
-                approveUrl,
-                rejectUrl,
                 escape(profesional.getEmail()),
                 googleConsoleUrl);
 
         boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
         if (ok) {
             log.info("Notificación de nuevo PENDIENTE enviada a {} admin(s)", destinatarios.size());
+        }
+    }
+
+    /**
+     * Mail de bienvenida al profesional con el link de suscripción de MP. El link viene del init_point
+     * de la preapproval que creamos en AuthService.invitar. Cuando el profesional paga, MP dispara
+     * webhook → activación automática.
+     */
+    @Async
+    public void notifyProfesionalConLinkPago(Profesional profesional, String initPoint) {
+        if (initPoint == null || initPoint.isBlank()) {
+            log.warn("No se envía mail a {} — initPoint vacío (MP falló al crear preapproval)", profesional.getEmail());
+            return;
+        }
+        String subject = "Bienvenido a holaDoc — Completá tu suscripción";
+        String html = """
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+              <h2 style="color: #111;">Hola %s, bienvenido a holaDoc</h2>
+              <p style="color: #555; line-height: 1.55;">
+                Recibimos tu pre-registro. Para activar tu cuenta, completá la suscripción mensual desde el link de abajo.
+                Cuando termines el pago, tu cuenta queda activa al instante y ya podés iniciar sesión con Google.
+              </p>
+              <div style="margin-top: 28px;">
+                <a href="%s" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">Completar suscripción</a>
+              </div>
+              <p style="margin-top: 28px; color: #888; font-size: 12px; line-height: 1.5;">
+                Si el botón no abre, copiá y pegá este link en tu navegador:<br>
+                <span style="word-break: break-all;">%s</span>
+              </p>
+              <p style="margin-top: 24px; color: #888; font-size: 12px; line-height: 1.5;">
+                ¿No reconocés este registro? Ignorá este mail — no se va a crear la cuenta sin el pago.
+              </p>
+            </div>
+            """.formatted(
+                escape(profesional.getNombre()),
+                initPoint,
+                initPoint);
+
+        boolean ok = emailService.send(List.of(profesional.getEmail()), subject, html);
+        if (ok) {
+            log.info("Mail con link de pago enviado a {}", profesional.getEmail());
         }
     }
 

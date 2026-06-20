@@ -25,6 +25,14 @@ public class Profesional extends BaseEntity {
     @Column(unique = true)
     private String googleId;
 
+    /**
+     * ID de la suscripción (preapproval) creada en MercadoPago al pre-registrarse. Se setea cuando
+     * AuthService.invitar() crea la preapproval con external_reference=email y se usa para correlacionar
+     * cuando el webhook llega — aunque la fuente de verdad para vincular es el external_reference (email).
+     */
+    @Column(name = "mp_preapproval_id")
+    private String mpPreapprovalId;
+
     private String matricula;
 
     @ManyToOne(fetch = FetchType.LAZY)

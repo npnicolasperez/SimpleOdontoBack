@@ -3,9 +3,11 @@ package com.simpleodonto.pago.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -31,6 +33,39 @@ public class MercadoPagoService {
         this.tokenTest = tokenTest;
         this.tokenProd = tokenProd;
         this.http      = RestClient.create();
+    }
+
+    /**
+     * POST /preapproval — crea una suscripción atada a un plan, con external_reference para
+     * correlacionar después con nuestro Profesional cuando llegue el webhook. MP devuelve un
+     * {@code init_point} único: URL personal del usuario para completar el pago.
+     *
+     * @return Optional con el JsonNode de respuesta (contiene {@code id}, {@code init_point}, etc.)
+     */
+    public Optional<JsonNode> crearPreapproval(String mode, String preapprovalPlanId, String payerEmail, String externalReference) {
+        String token = tokenFor(mode);
+        if (token == null || token.isBlank()) {
+            log.warn("[MP/{}] Access token vacío — no se puede crear preapproval", mode);
+            return Optional.empty();
+        }
+        try {
+            Map<String, Object> body = Map.of(
+                    "preapproval_plan_id", preapprovalPlanId,
+                    "payer_email",         payerEmail,
+                    "external_reference",  externalReference
+            );
+            JsonNode resp = http.post()
+                    .uri(MP_BASE + "/preapproval")
+                    .header("Authorization", "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(JsonNode.class);
+            return Optional.ofNullable(resp);
+        } catch (Exception e) {
+            log.warn("[MP/{}] Error creando preapproval para {}: {}", mode, payerEmail, e.getMessage());
+            return Optional.empty();
+        }
     }
 
     /** GET /v1/payments/{id} — datos completos de un pago. */

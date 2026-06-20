@@ -4,6 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import com.simpleodonto.pago.service.SuscripcionService;
 import com.simpleodonto.profesional.domain.Especialidad;
 import com.simpleodonto.profesional.domain.EstadoProfesional;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -16,6 +17,7 @@ import com.simpleodonto.shared.security.JwtUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +25,7 @@ import java.util.Collections;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private final ProfesionalRepository     profesionalRepository;
@@ -30,6 +33,7 @@ public class AuthService {
     private final JwtUtil                   jwtUtil;
     private final AdminNotificationService  adminNotification;
     private final AdminEmails               adminEmails;
+    private final SuscripcionService        suscripcionService;
 
     @Value("${google.client-id}")
     private String googleClientId;
@@ -92,6 +96,20 @@ public class AuthService {
                 .estado(EstadoProfesional.PENDIENTE)
                 .build();
         Profesional saved = profesionalRepository.save(nuevo);
+
+        // Creamos la preapproval (suscripción) en MP atada a su email como external_reference.
+        // Cuando el profesional pague, el webhook llega con ese external_reference y activa la cuenta.
+        // Si MP falla acá, el registro queda igual (estado PENDIENTE) — el profesional puede reintentar,
+        // y el admin tiene visibilidad vía el mail informativo.
+        String initPoint = suscripcionService.crearParaProfesional(saved.getEmail())
+                .map(p -> {
+                    saved.setMpPreapprovalId(p.id());
+                    profesionalRepository.save(saved);
+                    return p.initPoint();
+                })
+                .orElse(null);
+
+        adminNotification.notifyProfesionalConLinkPago(saved, initPoint);
         adminNotification.notifyNuevoPendiente(saved);
     }
 
