@@ -9,12 +9,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * Endpoint público que recibe los webhooks de MercadoPago.
- * URL a configurar en el panel MP: {@code https://api.holadocapp.com/api/mp/webhook}.
+ * Endpoints públicos que reciben los webhooks de MercadoPago. Hay dos paths separados (test y prod)
+ * porque cada modo de MP es un universo aislado con sus propias credenciales (access token, webhook
+ * secret) y plan id. El endpoint determina con qué modo se valida y se consulta.
  *
- * Importante: respondemos 200 SIEMPRE (salvo firma inválida → 401). MP reintenta si recibe
- * 4xx/5xx, así que cualquier error de procesamiento se loguea pero no lo propagamos —
- * si lo propagamos, MP reintenta el mismo evento N veces y eso solo amplifica el problema.
+ * URLs a configurar en el panel MP:
+ *   - App de prueba       → {@code https://api.holadocapp.com/api/mp/webhook/test}
+ *   - App de producción   → {@code https://api.holadocapp.com/api/mp/webhook/prod}
+ *
+ * Importante: respondemos 200 SIEMPRE (salvo firma inválida → 401). MP reintenta si recibe 4xx/5xx,
+ * así que cualquier error de procesamiento se loguea pero no se propaga — si lo propagamos, MP
+ * reintenta el mismo evento N veces y solo amplifica el problema.
  */
 @RestController
 @RequestMapping("/api/mp")
@@ -25,28 +30,39 @@ public class MercadoPagoWebhookController {
     private final MercadoPagoWebhookValidator validator;
     private final MercadoPagoWebhookProcessor processor;
 
-    @PostMapping("/webhook")
-    public ResponseEntity<Void> webhook(
+    @PostMapping("/webhook/test")
+    public ResponseEntity<Void> webhookTest(
             @RequestHeader(value = "x-signature",  required = false) String xSignature,
             @RequestHeader(value = "x-request-id", required = false) String xRequestId,
             @RequestBody JsonNode body) {
+        return procesar("test", xSignature, xRequestId, body);
+    }
 
+    @PostMapping("/webhook/prod")
+    public ResponseEntity<Void> webhookProd(
+            @RequestHeader(value = "x-signature",  required = false) String xSignature,
+            @RequestHeader(value = "x-request-id", required = false) String xRequestId,
+            @RequestBody JsonNode body) {
+        return procesar("prod", xSignature, xRequestId, body);
+    }
+
+    private ResponseEntity<Void> procesar(String mode, String xSignature, String xRequestId, JsonNode body) {
         String type   = textOrNull(body, "type");
         String dataId = body.path("data").path("id").isMissingNode() ? null : body.path("data").path("id").asText();
-        log.info("[MP] Webhook recibido: type={}, dataId={}", type, dataId);
+        log.info("[MP/{}] Webhook recibido: type={}, dataId={}", mode, type, dataId);
 
-        if (!validator.validar(xSignature, xRequestId, dataId)) {
+        if (!validator.validar(mode, xSignature, xRequestId, dataId)) {
             return ResponseEntity.status(401).build();
         }
         if (type == null || dataId == null) {
-            log.warn("[MP] Webhook sin type o data.id — body={}", body);
+            log.warn("[MP/{}] Webhook sin type o data.id — body={}", mode, body);
             return ResponseEntity.ok().build();
         }
 
         try {
-            processor.procesar(type, dataId);
+            processor.procesar(mode, type, dataId);
         } catch (Exception e) {
-            log.error("[MP] Error procesando webhook type={} dataId={}", type, dataId, e);
+            log.error("[MP/{}] Error procesando webhook type={} dataId={}", mode, type, dataId, e);
         }
         return ResponseEntity.ok().build();
     }

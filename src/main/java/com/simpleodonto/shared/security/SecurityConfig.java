@@ -39,7 +39,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,    "/api/auth/aprobar", "/api/auth/rechazar").permitAll()
                 .requestMatchers(HttpMethod.GET,    "/api/calendar/callback").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/calendar/webhook").permitAll()
-                .requestMatchers(HttpMethod.POST,   "/api/mp/webhook").permitAll()
+                .requestMatchers(HttpMethod.POST,   "/api/mp/webhook/test", "/api/mp/webhook/prod").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/auth/activar").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.POST,   "/api/especialidades").hasRole("ADMIN")

@@ -31,36 +31,36 @@ public class MercadoPagoWebhookProcessor {
     private final ProfesionalRepository  profesionalRepository;
 
     @Transactional
-    public void procesar(String type, String dataId) {
+    public void procesar(String mode, String type, String dataId) {
         switch (type) {
-            case "subscription_preapproval"          -> procesarPreapproval(dataId);
-            case "subscription_authorized_payment"   -> procesarAuthorizedPayment(dataId);
-            case "payment"                           -> procesarPayment(dataId);
-            default -> log.info("[MP] Evento ignorado: type={}, dataId={}", type, dataId);
+            case "subscription_preapproval"          -> procesarPreapproval(mode, dataId);
+            case "subscription_authorized_payment"   -> procesarAuthorizedPayment(mode, dataId);
+            case "payment"                           -> procesarPayment(mode, dataId);
+            default -> log.info("[MP/{}] Evento ignorado: type={}, dataId={}", mode, type, dataId);
         }
     }
 
     /** Suscripción creada / actualizada. Lo más importante: status=authorized → activar profesional. */
-    private void procesarPreapproval(String preapprovalId) {
-        mpService.obtenerPreapproval(preapprovalId).ifPresentOrElse(node -> {
+    private void procesarPreapproval(String mode, String preapprovalId) {
+        mpService.obtenerPreapproval(mode, preapprovalId).ifPresentOrElse(node -> {
             String status      = textOrNull(node, "status");
             String externalRef = textOrNull(node, "external_reference");
-            log.info("[MP] preapproval {} status={} external_reference={}", preapprovalId, status, externalRef);
+            log.info("[MP/{}] preapproval {} status={} external_reference={}", mode, preapprovalId, status, externalRef);
             if (externalRef == null || externalRef.isBlank()) {
-                log.warn("[MP] preapproval {} sin external_reference — no podemos vincular al profesional", preapprovalId);
+                log.warn("[MP/{}] preapproval {} sin external_reference — no podemos vincular al profesional", mode, preapprovalId);
                 return;
             }
             switch (status) {
                 case "authorized" -> activar(externalRef);
                 case "cancelled", "paused" -> suspender(externalRef);
-                default -> log.info("[MP] preapproval {} status={} — sin acción", preapprovalId, status);
+                default -> log.info("[MP/{}] preapproval {} status={} — sin acción", mode, preapprovalId, status);
             }
-        }, () -> log.warn("[MP] No se pudo obtener preapproval {}", preapprovalId));
+        }, () -> log.warn("[MP/{}] No se pudo obtener preapproval {}", mode, preapprovalId));
     }
 
     /** Cobro mensual de una suscripción. Solo nos importa para detectar fallas. */
-    private void procesarAuthorizedPayment(String authorizedPaymentId) {
-        mpService.obtenerAuthorizedPayment(authorizedPaymentId).ifPresentOrElse(node -> {
+    private void procesarAuthorizedPayment(String mode, String authorizedPaymentId) {
+        mpService.obtenerAuthorizedPayment(mode, authorizedPaymentId).ifPresentOrElse(node -> {
             String status     = textOrNull(node, "status");
             String externalRef = textOrNull(node, "external_reference");
             // En algunos esquemas el external_reference vive en el preapproval, no en el authorized_payment;
@@ -68,26 +68,26 @@ public class MercadoPagoWebhookProcessor {
             if (externalRef == null) {
                 String preapprovalId = textOrNull(node, "preapproval_id");
                 if (preapprovalId != null) {
-                    externalRef = mpService.obtenerPreapproval(preapprovalId)
+                    externalRef = mpService.obtenerPreapproval(mode, preapprovalId)
                             .map(n -> textOrNull(n, "external_reference"))
                             .orElse(null);
                 }
             }
-            log.info("[MP] authorized_payment {} status={} external_reference={}", authorizedPaymentId, status, externalRef);
+            log.info("[MP/{}] authorized_payment {} status={} external_reference={}", mode, authorizedPaymentId, status, externalRef);
             if (externalRef == null) return;
             if ("rejected".equals(status)) suspender(externalRef);
-        }, () -> log.warn("[MP] No se pudo obtener authorized_payment {}", authorizedPaymentId));
+        }, () -> log.warn("[MP/{}] No se pudo obtener authorized_payment {}", mode, authorizedPaymentId));
     }
 
     /** Pago directo (no recurrente). Lo procesamos por si activamos cobro one-shot en el futuro. */
-    private void procesarPayment(String paymentId) {
-        mpService.obtenerPayment(paymentId).ifPresentOrElse(node -> {
+    private void procesarPayment(String mode, String paymentId) {
+        mpService.obtenerPayment(mode, paymentId).ifPresentOrElse(node -> {
             String status     = textOrNull(node, "status");
             String externalRef = textOrNull(node, "external_reference");
-            log.info("[MP] payment {} status={} external_reference={}", paymentId, status, externalRef);
+            log.info("[MP/{}] payment {} status={} external_reference={}", mode, paymentId, status, externalRef);
             if (externalRef == null || externalRef.isBlank()) return;
             if ("approved".equals(status)) activar(externalRef);
-        }, () -> log.warn("[MP] No se pudo obtener payment {}", paymentId));
+        }, () -> log.warn("[MP/{}] No se pudo obtener payment {}", mode, paymentId));
     }
 
     private void activar(String email) {

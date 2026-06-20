@@ -13,10 +13,12 @@ import java.util.HexFormat;
  * Valida la firma HMAC SHA256 que MercadoPago manda en los webhooks. Sin esto, cualquiera podría
  * pegarle a nuestro endpoint público con payloads inventados y activar cuentas sin pago.
  *
- * Docs: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+ * Tiene ambos secrets (test y prod). El caller (controller) le dice cuál usar según el endpoint
+ * por el que llegó el webhook — /api/mp/webhook/test usa el secret test, /prod usa el secret prod.
  *
+ * Docs: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
  * Manifest a firmar: "id:<DATA_ID>;request-id:<REQUEST_ID>;ts:<TS>;"
- *   - DATA_ID: viene en x-signature como dataId (o sea el `data.id` del body).
+ *   - DATA_ID: viene del body como `data.id`.
  *   - REQUEST_ID: header x-request-id.
  *   - TS: timestamp del x-signature.
  * El v1 del x-signature es HMAC-SHA256(secret, manifest) en hex.
@@ -25,24 +27,29 @@ import java.util.HexFormat;
 @Slf4j
 public class MercadoPagoWebhookValidator {
 
-    private final String secret;
+    private final String secretTest;
+    private final String secretProd;
 
-    public MercadoPagoWebhookValidator(@Value("${app.mp.webhook-secret}") String secret) {
-        this.secret = secret;
+    public MercadoPagoWebhookValidator(
+            @Value("${app.mp.webhook-secret-test}") String secretTest,
+            @Value("${app.mp.webhook-secret-prod}") String secretProd) {
+        this.secretTest = secretTest;
+        this.secretProd = secretProd;
     }
 
     /**
-     * Devuelve true si la firma es válida. Si el secret está vacío (dev local sin config),
-     * loguea un warning y devuelve true para no bloquear el desarrollo — en prod la env var
-     * debe estar seteada para que la validación sea real.
+     * Devuelve true si la firma es válida para el modo indicado. Si el secret del modo está vacío
+     * (dev local sin config), loguea un warning y devuelve true para no bloquear el desarrollo —
+     * en prod las env vars deben estar seteadas para que la validación sea real.
      */
-    public boolean validar(String xSignature, String xRequestId, String dataId) {
+    public boolean validar(String mode, String xSignature, String xRequestId, String dataId) {
+        String secret = secretFor(mode);
         if (secret == null || secret.isBlank()) {
-            log.warn("[MP] MP_WEBHOOK_SECRET vacío — saltando validación de firma (modo dev)");
+            log.warn("[MP/{}] Secret vacío — saltando validación de firma (modo dev)", mode);
             return true;
         }
         if (xSignature == null || xRequestId == null || dataId == null) {
-            log.warn("[MP] Webhook sin headers requeridos (x-signature, x-request-id) o sin data.id");
+            log.warn("[MP/{}] Webhook sin headers requeridos (x-signature, x-request-id) o sin data.id", mode);
             return false;
         }
 
@@ -55,7 +62,7 @@ public class MercadoPagoWebhookValidator {
             if ("v1".equals(kv[0])) v1 = kv[1];
         }
         if (ts == null || v1 == null) {
-            log.warn("[MP] x-signature mal formado: {}", xSignature);
+            log.warn("[MP/{}] x-signature mal formado: {}", mode, xSignature);
             return false;
         }
 
@@ -64,9 +71,13 @@ public class MercadoPagoWebhookValidator {
 
         boolean ok = constantTimeEquals(calculado, v1);
         if (!ok) {
-            log.warn("[MP] Firma inválida. Manifest={}, calc={}, recibido={}", manifest, calculado, v1);
+            log.warn("[MP/{}] Firma inválida. Manifest={}, calc={}, recibido={}", mode, manifest, calculado, v1);
         }
         return ok;
+    }
+
+    private String secretFor(String mode) {
+        return "prod".equalsIgnoreCase(mode) ? secretProd : secretTest;
     }
 
     private static String hmacSha256(String key, String data) {
