@@ -1,67 +1,59 @@
 package com.simpleodonto.pago.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 /**
- * Orquesta la creación de suscripciones (preapprovals) atadas al plan activo según MP_MODE.
- * AuthService la usa cuando un profesional se pre-registra para generarle un link de pago único.
+ * Construye el link de checkout de la suscripción (preapproval) para un profesional. Usa el plan
+ * activo según MP_MODE y le inyecta el {@code external_reference} en la URL — cuando el
+ * profesional paga, MP crea la preapproval con ese external_reference y el webhook llega con esa
+ * data, lo que permite activar al profesional automáticamente.
  *
- * Separa la lógica de "qué modo / qué plan" de la lógica REST cruda (MercadoPagoService es agnóstica
- * al modo, solo recibe parámetros — este service decide qué mode y planId pasarle).
+ * No creamos la preapproval desde el back porque MP exige {@code card_token_id} (tarjeta ya
+ * tokenizada) y eso requiere que el user pase por el frontend de MP primero. Es más simple dejar
+ * que MP la cree solo cuando el user paga desde el link.
  */
 @Service
 @Slf4j
 public class SuscripcionService {
 
-    private final MercadoPagoService mp;
-    private final String             mode;
-    private final String             planIdTest;
-    private final String             planIdProd;
+    private static final String CHECKOUT_URL = "https://www.mercadopago.com.ar/subscriptions/checkout";
 
-    public SuscripcionService(MercadoPagoService mp,
-                              @Value("${app.mp.mode}")                     String mode,
+    private final String mode;
+    private final String planIdTest;
+    private final String planIdProd;
+
+    public SuscripcionService(@Value("${app.mp.mode}")                     String mode,
                               @Value("${app.mp.preapproval-plan-id-test}") String planIdTest,
                               @Value("${app.mp.preapproval-plan-id-prod}") String planIdProd) {
-        this.mp         = mp;
         this.mode       = mode;
         this.planIdTest = planIdTest;
         this.planIdProd = planIdProd;
     }
 
     /**
-     * Crea la preapproval del profesional. Devuelve un PreapprovalCreada con el id y el init_point
-     * (URL que el profesional abre para completar el pago). Empty si la creación falla — el caller
-     * decide qué hacer (típicamente continúa el registro y avisa al admin que MP falló).
+     * Devuelve el init_point (URL de checkout) para un profesional pre-registrado. Empty si el
+     * plan no está configurado.
      */
-    public Optional<PreapprovalCreada> crearParaProfesional(String emailProfesional) {
+    public Optional<String> initPointPara(String emailProfesional) {
         String planId = planIdActivo();
         if (planId == null || planId.isBlank()) {
-            log.warn("[MP/{}] preapproval_plan_id vacío — saltando creación de preapproval para {}", mode, emailProfesional);
+            log.warn("[MP/{}] preapproval_plan_id vacío — no se puede generar link de pago para {}", mode, emailProfesional);
             return Optional.empty();
         }
-        return mp.crearPreapproval(mode, planId, emailProfesional, emailProfesional)
-                .map(node -> {
-                    String id        = textOrNull(node, "id");
-                    String initPoint = textOrNull(node, "init_point");
-                    log.info("[MP/{}] preapproval creada para {}: id={}", mode, emailProfesional, id);
-                    return new PreapprovalCreada(id, initPoint);
-                });
+        String url = CHECKOUT_URL
+                + "?preapproval_plan_id=" + planId
+                + "&external_reference="  + URLEncoder.encode(emailProfesional, StandardCharsets.UTF_8);
+        log.info("[MP/{}] init_point generado para {}", mode, emailProfesional);
+        return Optional.of(url);
     }
 
     private String planIdActivo() {
         return "prod".equalsIgnoreCase(mode) ? planIdProd : planIdTest;
     }
-
-    private static String textOrNull(JsonNode node, String field) {
-        if (node == null) return null;
-        JsonNode v = node.get(field);
-        return (v == null || v.isNull()) ? null : v.asText();
-    }
-
-    public record PreapprovalCreada(String id, String initPoint) {}
 }

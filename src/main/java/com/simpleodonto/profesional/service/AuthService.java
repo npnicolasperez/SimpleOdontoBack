@@ -97,17 +97,10 @@ public class AuthService {
                 .build();
         Profesional saved = profesionalRepository.save(nuevo);
 
-        // Creamos la preapproval (suscripción) en MP atada a su email como external_reference.
-        // Cuando el profesional pague, el webhook llega con ese external_reference y activa la cuenta.
-        // Si MP falla acá, el registro queda igual (estado PENDIENTE) — el profesional puede reintentar,
-        // y el admin tiene visibilidad vía el mail informativo.
-        String initPoint = suscripcionService.crearParaProfesional(saved.getEmail())
-                .map(p -> {
-                    saved.setMpPreapprovalId(p.id());
-                    profesionalRepository.save(saved);
-                    return p.initPoint();
-                })
-                .orElse(null);
+        // Generamos el init_point del checkout de MP con external_reference=email. Cuando el
+        // profesional paga desde ese link, MP crea la preapproval con ese external_reference y el
+        // webhook llega con esa data → activamos el profesional automáticamente.
+        String initPoint = suscripcionService.initPointPara(saved.getEmail()).orElse(null);
 
         adminNotification.notifyProfesionalConLinkPago(saved, initPoint);
         adminNotification.notifyNuevoPendiente(saved);
