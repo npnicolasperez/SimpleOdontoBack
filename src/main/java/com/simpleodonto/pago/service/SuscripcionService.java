@@ -1,5 +1,7 @@
 package com.simpleodonto.pago.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,16 +26,40 @@ public class SuscripcionService {
 
     private static final String CHECKOUT_URL = "https://www.mercadopago.com.ar/subscriptions/checkout";
 
-    private final String mode;
-    private final String planIdTest;
-    private final String planIdProd;
+    private final MercadoPagoService mp;
+    private final String             mode;
+    private final String             planIdTest;
+    private final String             planIdProd;
 
-    public SuscripcionService(@Value("${app.mp.mode}")                     String mode,
+    public SuscripcionService(MercadoPagoService mp,
+                              @Value("${app.mp.mode}")                     String mode,
                               @Value("${app.mp.preapproval-plan-id-test}") String planIdTest,
                               @Value("${app.mp.preapproval-plan-id-prod}") String planIdProd) {
+        this.mp         = mp;
         this.mode       = mode;
         this.planIdTest = planIdTest;
         this.planIdProd = planIdProd;
+    }
+
+    /**
+     * Valida que la preapproval indicada esté autorizada en MP. Se usa desde el endpoint
+     * confirmar-pago, al que el front llama cuando MP redirige al user a /post-pago con el
+     * preapproval_id en el query string.
+     */
+    public boolean estaAutorizada(String preapprovalId) {
+        return mp.obtenerPreapproval(mode, preapprovalId)
+                .map(node -> {
+                    String status = textOrNull(node, "status");
+                    log.info("[MP/{}] Confirmar pago: preapproval {} status={}", mode, preapprovalId, status);
+                    return "authorized".equals(status);
+                })
+                .orElse(false);
+    }
+
+    private static String textOrNull(JsonNode node, String field) {
+        if (node == null) return null;
+        JsonNode v = node.get(field);
+        return (v == null || v.isNull()) ? null : v.asText();
     }
 
     /**

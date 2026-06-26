@@ -33,6 +33,17 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Llamado por el front desde /post-pago. Recibe el email del profesional + el preapproval_id
+     * que MP devolvió en el query string del redirect. Valida con MP que la preapproval esté
+     * authorized y activa la cuenta. Devuelve {"ok": true} si se activó (o ya estaba activa).
+     */
+    @PostMapping("/confirmar-pago")
+    public ResponseEntity<java.util.Map<String, Boolean>> confirmarPago(@Valid @RequestBody ConfirmarPagoRequest req) {
+        boolean ok = authService.confirmarPago(req.email(), req.preapprovalId());
+        return ResponseEntity.ok(java.util.Map.of("ok", ok));
+    }
+
     @PostMapping("/activar")
     public ResponseEntity<Void> activar(
             @RequestParam String email,

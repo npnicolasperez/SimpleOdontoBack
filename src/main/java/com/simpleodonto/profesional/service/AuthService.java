@@ -106,6 +106,35 @@ public class AuthService {
         adminNotification.notifyNuevoPendiente(saved);
     }
 
+    /**
+     * Confirma el pago de un profesional pre-registrado. El front llama acá cuando MP redirige a
+     * /post-pago con el preapproval_id en el query string. Validamos contra MP que la preapproval
+     * realmente está autorizada — sin eso, alguien podría inventar pares (email, preapprovalId) y
+     * activar cuentas sin pagar.
+     */
+    public boolean confirmarPago(String email, String preapprovalId) {
+        if (email == null || email.isBlank() || preapprovalId == null || preapprovalId.isBlank()) {
+            log.warn("[confirmarPago] email o preapprovalId vacíos");
+            return false;
+        }
+        if (!suscripcionService.estaAutorizada(preapprovalId)) {
+            log.warn("[confirmarPago] preapproval {} no autorizada — no activamos a {}", preapprovalId, email);
+            return false;
+        }
+        var prof = profesionalRepository.findByEmail(email).orElse(null);
+        if (prof == null) {
+            log.warn("[confirmarPago] profesional con email {} no existe", email);
+            return false;
+        }
+        if (prof.getEstado() != EstadoProfesional.ACTIVO) {
+            prof.setEstado(EstadoProfesional.ACTIVO);
+            prof.setMpPreapprovalId(preapprovalId);
+            profesionalRepository.save(prof);
+            log.info("[confirmarPago] Profesional {} activado vía confirmarPago (preapproval {})", email, preapprovalId);
+        }
+        return true;
+    }
+
     public void activar(String email) {
         Profesional p = profesionalRepository.findByEmail(email)
                 .orElseThrow(() -> new EntityNotFoundException("Profesional no encontrado"));
