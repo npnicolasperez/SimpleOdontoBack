@@ -34,7 +34,7 @@ public class AdminNotificationService {
             return;
         }
 
-        String subject = "Nuevo registro pendiente de pago — holaDoc";
+        String subject = "Nuevo registro pendiente de pago — HolaDocApp";
         String googleConsoleUrl = "https://console.cloud.google.com/auth/audience?project=simpleodonto";
         String html = """
             <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
@@ -80,10 +80,10 @@ public class AdminNotificationService {
             log.warn("No se envía mail a {} — initPoint vacío (MP falló al crear preapproval)", profesional.getEmail());
             return;
         }
-        String subject = "Bienvenido a holaDoc — Completá tu suscripción";
+        String subject = "Bienvenido a HolaDocApp — Completá tu suscripción";
         String html = """
             <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
-              <h2 style="color: #111;">Hola %s, bienvenido a holaDoc</h2>
+              <h2 style="color: #111;">Hola %s, bienvenido a HolaDocApp</h2>
               <p style="color: #555; line-height: 1.55;">
                 Recibimos tu pre-registro. Para activar tu cuenta, completá la suscripción mensual desde el link de abajo.
                 Cuando termines el pago, tu cuenta queda activa al instante y ya podés iniciar sesión con Google.
