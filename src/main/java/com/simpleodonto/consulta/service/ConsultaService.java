@@ -20,9 +20,6 @@ import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -61,13 +58,6 @@ public class ConsultaService {
                 .toList();
     }
 
-    public Page<ConsultaResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
-        Page<Consulta> page = (buscar != null && !buscar.isBlank())
-                ? consultaRepository.buscar(profesional.getId(), buscar, pageable)
-                : consultaRepository.findByProfesionalId(profesional.getId(), pageable);
-        return page.map(this::toResponse);
-    }
-
     @Transactional
     public ConsultaResponse crear(ConsultaRequest req, Profesional profesional) {
         Paciente paciente = pacienteRepository
@@ -88,6 +78,7 @@ public class ConsultaService {
                 .profesional(profesional)
                 .consultorio(consultorio)
                 .fecha(req.fecha() != null ? req.fecha() : LocalDate.now())
+                .motivo(req.motivo())
                 .descripcion(req.descripcion())
                 .monto(req.monto())
                 .tipoPago(req.tipoPago())
@@ -113,6 +104,7 @@ public class ConsultaService {
 
         consulta.setConsultorio(consultorio);
         if (req.fecha() != null) consulta.setFecha(req.fecha());
+        consulta.setMotivo(req.motivo());
         consulta.setDescripcion(req.descripcion());
         consulta.setMonto(req.monto());
         consulta.setTipoPago(req.tipoPago());
@@ -201,6 +193,7 @@ public class ConsultaService {
                         c.getConsultorio() != null ? c.getConsultorio().getId()     : null,
                         c.getConsultorio() != null ? c.getConsultorio().getNombre() : null,
                         c.getFecha(),
+                        c.getMotivo(),
                         c.getDescripcion(),
                         c.getMonto(),
                         c.getTipoPago(),
@@ -225,6 +218,7 @@ public class ConsultaService {
                         c.getConsultorio() != null ? c.getConsultorio().getId()     : null,
                         c.getConsultorio() != null ? c.getConsultorio().getNombre() : null,
                         c.getFecha(),
+                        c.getMotivo(),
                         c.getDescripcion(),
                         c.getMonto(),
                         c.getTipoPago(),

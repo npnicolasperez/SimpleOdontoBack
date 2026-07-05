@@ -37,6 +37,14 @@ public class MedioPagoService {
     }
 
     @Transactional
+    public MedioPagoResponse actualizar(Long id, MedioPagoRequest req, Profesional profesional) {
+        MedioPago mp = medioPagoRepository.findByIdAndProfesionalId(id, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Medio de pago no encontrado"));
+        mp.setNombre(req.nombre());
+        return toResponse(medioPagoRepository.save(mp));
+    }
+
+    @Transactional
     public void eliminar(Long id, Profesional profesional) {
         MedioPago mp = medioPagoRepository.findByIdAndProfesionalId(id, profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Medio de pago no encontrado"));

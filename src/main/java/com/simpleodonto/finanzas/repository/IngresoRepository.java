@@ -14,6 +14,7 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
     List<Ingreso> findByProfesionalIdOrderByDateCreatedDesc(Long profesionalId);
     boolean existsByConsultorioId(Long consultorioId);
     boolean existsByMedioPagoId(Long medioPagoId);
+    boolean existsByObraSocialId(Long obraSocialId);
 
     @Query("SELECT i FROM Ingreso i " +
            "WHERE i.profesional.id = :profesionalId " +

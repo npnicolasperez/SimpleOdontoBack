@@ -10,6 +10,7 @@ public record ConsultaRequest(
         @NotNull(message = "Falta el paciente") Long pacienteId,
         @NotNull(message = "Seleccioná un consultorio") Long consultorioId,
         LocalDate     fecha,
+        String        motivo,
         String        descripcion,
         BigDecimal    monto,
         TipoPago      tipoPago,

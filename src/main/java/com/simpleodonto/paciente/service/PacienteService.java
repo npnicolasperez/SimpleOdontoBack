@@ -1,5 +1,6 @@
 package com.simpleodonto.paciente.service;
 
+import com.simpleodonto.consulta.repository.ConsultaRepository;
 import com.simpleodonto.obrasocial.domain.ObraSocial;
 import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Odontograma;
@@ -14,6 +15,7 @@ import com.simpleodonto.paciente.dto.PacienteStatsResponse;
 import com.simpleodonto.paciente.repository.OdontogramaRepository;
 import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
+import com.simpleodonto.turno.repository.TurnoRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,16 +44,27 @@ public class PacienteService {
     private final OdontogramaRepository odontogramaRepository;
     private final PacienteStatsService  pacienteStatsService;
     private final ObraSocialRepository  obraSocialRepository;
+    private final ConsultaRepository    consultaRepository;
+    private final TurnoRepository       turnoRepository;
 
     public Page<PacienteResponse> listar(String buscar, Pageable pageable, Profesional profesional) {
-        if (buscar != null && !buscar.isBlank()) {
-            return pacienteRepository
-                    .buscar(profesional.getId(), buscar.trim(), pageable)
-                    .map(this::toResponse);
+        Page<Paciente> page = (buscar != null && !buscar.isBlank())
+                ? pacienteRepository.buscar(profesional.getId(), buscar.trim(), pageable)
+                : pacienteRepository.findByProfesionalId(profesional.getId(), pageable);
+
+        List<Long> ids = page.getContent().stream().map(Paciente::getId).toList();
+        Map<Long, LocalDate> ultimaVisitaByPacId = new HashMap<>();
+        Map<Long, LocalDate> proximoTurnoByPacId = new HashMap<>();
+        if (!ids.isEmpty()) {
+            for (Object[] row : consultaRepository.findMaxFechaByPacienteIds(profesional.getId(), ids)) {
+                ultimaVisitaByPacId.put((Long) row[0], (LocalDate) row[1]);
+            }
+            LocalDateTime ahora = LocalDateTime.now();
+            for (Object[] row : turnoRepository.findProximoTurnoByPacienteIds(profesional.getId(), ids, ahora)) {
+                proximoTurnoByPacId.put((Long) row[0], ((LocalDateTime) row[1]).toLocalDate());
+            }
         }
-        return pacienteRepository
-                .findByProfesionalId(profesional.getId(), pageable)
-                .map(this::toResponse);
+        return page.map(p -> toResponse(p, ultimaVisitaByPacId.get(p.getId()), proximoTurnoByPacId.get(p.getId())));
     }
 
     @Transactional
@@ -85,7 +100,12 @@ public class PacienteService {
     }
 
     public PacienteResponse obtener(Long id, Profesional profesional) {
-        return toResponse(findOwned(id, profesional));
+        Paciente p = findOwned(id, profesional);
+        LocalDate proximoTurno = turnoRepository
+                .findProximoTurnoPaciente(profesional.getId(), p.getId(), LocalDateTime.now())
+                .map(LocalDateTime::toLocalDate)
+                .orElse(null);
+        return toResponse(p, null, proximoTurno);
     }
 
     @Transactional
@@ -221,6 +241,10 @@ public class PacienteService {
     }
 
     private PacienteResponse toResponse(Paciente p) {
+        return toResponse(p, null, null);
+    }
+
+    private PacienteResponse toResponse(Paciente p, LocalDate ultimaVisita, LocalDate proximoTurno) {
         List<PacienteObraSocialDto> osDtos = p.getObrasSociales() == null
                 ? Collections.emptyList()
                 : p.getObrasSociales().stream()
@@ -238,7 +262,8 @@ public class PacienteService {
                 p.getOcupacion(), p.getGrupoSanguineo(),
                 p.getAlergias(), p.getMedicaciones(), p.getAntecedentes(),
                 p.getAntecedentesFamiliares(), p.getPeso(), p.getAltura(),
-                p.getDateCreated(), p.getLastUpdated()
+                p.getDateCreated(), p.getLastUpdated(),
+                ultimaVisita, proximoTurno
         );
     }
 

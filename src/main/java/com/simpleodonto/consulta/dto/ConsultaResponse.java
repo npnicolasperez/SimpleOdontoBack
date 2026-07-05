@@ -17,6 +17,7 @@ public record ConsultaResponse(
         Long            consultorioId,
         String          consultorioNombre,
         LocalDate       fecha,
+        String          motivo,
         String          descripcion,
         BigDecimal      monto,
         TipoPago        tipoPago,

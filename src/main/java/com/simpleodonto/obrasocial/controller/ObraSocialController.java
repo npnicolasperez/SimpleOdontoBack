@@ -36,6 +36,15 @@ public class ObraSocialController {
         return ResponseEntity.status(HttpStatus.CREATED).body(obraSocialService.crear(req, profesional));
     }
 
+    @PutMapping("/{id}")
+    public ObraSocialResponse actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody ObraSocialRequest req,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return obraSocialService.actualizar(id, req, profesional);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(
             @PathVariable Long id,

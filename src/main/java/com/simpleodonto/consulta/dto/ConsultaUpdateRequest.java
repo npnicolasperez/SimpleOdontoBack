@@ -9,6 +9,7 @@ import java.time.LocalDate;
 public record ConsultaUpdateRequest(
         @NotNull(message = "Seleccioná un consultorio") Long consultorioId,
         LocalDate  fecha,
+        String     motivo,
         String     descripcion,
         BigDecimal monto,
         TipoPago   tipoPago,

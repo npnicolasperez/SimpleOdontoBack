@@ -36,6 +36,15 @@ public class ConsultorioController {
         return ResponseEntity.status(HttpStatus.CREATED).body(consultorioService.crear(req, profesional));
     }
 
+    @PutMapping("/{id}")
+    public ConsultorioResponse actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody ConsultorioRequest req,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return consultorioService.actualizar(id, req, profesional);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(
             @PathVariable Long id,

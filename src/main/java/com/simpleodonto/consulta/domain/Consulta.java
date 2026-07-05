@@ -37,6 +37,9 @@ public class Consulta extends BaseEntity {
     private LocalDate fecha;
 
     @Column(columnDefinition = "TEXT")
+    private String motivo;
+
+    @Column(columnDefinition = "TEXT")
     private String descripcion;
 
     /** Monto que cobra el profesional por la consulta. Es lo que va a Ingresos. */

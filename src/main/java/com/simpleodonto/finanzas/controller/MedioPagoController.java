@@ -36,6 +36,15 @@ public class MedioPagoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(medioPagoService.crear(req, profesional));
     }
 
+    @PutMapping("/{id}")
+    public MedioPagoResponse actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody MedioPagoRequest req,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return medioPagoService.actualizar(id, req, profesional);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> eliminar(@PathVariable Long id, HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);

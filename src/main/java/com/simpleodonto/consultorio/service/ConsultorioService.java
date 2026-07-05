@@ -43,6 +43,14 @@ public class ConsultorioService {
     }
 
     @Transactional
+    public ConsultorioResponse actualizar(Long id, ConsultorioRequest req, Profesional profesional) {
+        Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(id, profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
+        consultorio.setNombre(req.nombre());
+        return toResponse(consultorioRepository.save(consultorio));
+    }
+
+    @Transactional
     public void eliminar(Long id, Profesional profesional) {
         Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(id, profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));

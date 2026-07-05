@@ -29,4 +29,29 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     Optional<Turno> findByIdAndProfesionalId(Long id, Long profesionalId);
     Optional<Turno> findFirstByProfesionalIdAndFechaHoraAfterOrderByFechaHora(Long profesionalId, LocalDateTime ahora);
     long countByProfesionalIdAndFechaHoraBetweenAndEstado(Long profesionalId, LocalDateTime desde, LocalDateTime hasta, EstadoTurno estado);
+
+    /** Próximo turno (>= ahora) por paciente para un set de pacientes del profesional. */
+    @Query("""
+        SELECT t.paciente.id, MIN(t.fechaHora)
+        FROM Turno t
+        WHERE t.profesional.id = :profesionalId
+          AND t.paciente.id IN :pacienteIds
+          AND t.fechaHora >= :ahora
+        GROUP BY t.paciente.id
+        """)
+    List<Object[]> findProximoTurnoByPacienteIds(@Param("profesionalId") Long profesionalId,
+                                                 @Param("pacienteIds") java.util.Collection<Long> pacienteIds,
+                                                 @Param("ahora") LocalDateTime ahora);
+
+    /** Próximo turno (>= ahora) para un único paciente. */
+    @Query("""
+        SELECT MIN(t.fechaHora)
+        FROM Turno t
+        WHERE t.profesional.id = :profesionalId
+          AND t.paciente.id   = :pacienteId
+          AND t.fechaHora     >= :ahora
+        """)
+    Optional<LocalDateTime> findProximoTurnoPaciente(@Param("profesionalId") Long profesionalId,
+                                                     @Param("pacienteId")    Long pacienteId,
+                                                     @Param("ahora")         LocalDateTime ahora);
 }

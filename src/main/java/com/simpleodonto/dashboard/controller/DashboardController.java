@@ -63,7 +63,7 @@ public class DashboardController {
         CompletableFuture<Long>                      fPendHoy      = dashboardService.fetchTurnosPendientesHoy(profId, inicioHoy, finHoy);
         CompletableFuture<Long>                      fPendManana   = dashboardService.fetchTurnosPendientesHoy(profId, inicioManana, finManana);
         CompletableFuture<Optional<ProximoTurnoDto>> fProximo      = dashboardService.fetchProximoTurno(profId, ahora);
-        CompletableFuture<List<Ingreso>>             fIngresos     = dashboardService.fetchIngresosMes(profId, inicioMes, finMes);
+        CompletableFuture<List<Ingreso>>             fIngresos     = dashboardService.fetchIngresosMes(profId, inicioMesSel, finMesSel);
         CompletableFuture<List<Consulta>>            fConsultas    = dashboardService.fetchConsultasMes(profId, inicioMesSel, finMesSel);
         CompletableFuture<String>                    fObraSocial   = dashboardService.fetchTopObraSocial(profId);
 

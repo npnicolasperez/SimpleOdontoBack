@@ -23,5 +23,7 @@ public record PacienteResponse(
         Double                        peso,
         Integer                       altura,
         LocalDateTime                 dateCreated,
-        LocalDateTime                 lastUpdated
+        LocalDateTime                 lastUpdated,
+        LocalDate                     ultimaVisita,
+        LocalDate                     proximoTurno
 ) {}
