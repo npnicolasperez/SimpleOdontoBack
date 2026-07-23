@@ -132,9 +132,14 @@ public class GoogleCalendarService {
             Calendar service = buildCalendarClient(profesional.getGoogleCalendarRefreshToken());
             service.calendars().get("primary").execute();
             return true;
-        } catch (Exception e) {
+        } catch (com.google.api.client.googleapis.json.GoogleJsonResponseException e) {
+            // Error de la API de Google (token inválido, revocado, etc.) → manejar y desconectar si corresponde
             manejarExcepcionToken(e, profesional);
             return estaConectado(profesional);
+        } catch (Exception e) {
+            // Error de red (timeout, DNS, etc.) → no desconectar, pero reportar como no válido
+            log.warn("No se pudo verificar Google Calendar para profesional {} (error de red): {}", profesional.getId(), e.getMessage());
+            return false;
         }
     }
 

@@ -12,6 +12,7 @@ import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.finanzas.domain.MedioPago;
 import com.simpleodonto.finanzas.dto.EstadisticaAnualDto;
 import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
+import com.simpleodonto.finanzas.dto.ConfirmarParticularRequest;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
 import com.simpleodonto.finanzas.dto.IngresoResponse;
 import com.simpleodonto.finanzas.dto.MovimientoResponse;
@@ -144,6 +145,28 @@ public class IngresoService {
             throw new IllegalArgumentException("No se puede eliminar un ingreso vinculado a una consulta. Eliminá la consulta.");
         }
         ingresoRepository.delete(ingreso);
+    }
+
+    /**
+     * Confirma un ingreso PARTICULAR pendiente registrando la fecha, monto cobrado y medio de pago.
+     */
+    @Transactional
+    public IngresoResponse confirmarParticular(Long ingresoId, ConfirmarParticularRequest req, Profesional profesional) {
+        Ingreso ingreso = ingresoRepository.findById(ingresoId)
+                .orElseThrow(() -> new EntityNotFoundException("Ingreso no encontrado"));
+        if (!ingreso.getProfesional().getId().equals(profesional.getId()))
+            throw new EntityNotFoundException("Ingreso no encontrado");
+        if (ingreso.getEstado() != EstadoIngreso.PENDIENTE)
+            throw new IllegalStateException("El ingreso ya no está pendiente");
+        ingreso.setEstado(EstadoIngreso.CONFIRMADO);
+        ingreso.setMonto(req.monto());
+        ingreso.setFecha(req.fecha());
+        if (req.medioPagoId() != null) {
+            MedioPago mp = medioPagoRepository.findByIdAndProfesionalId(req.medioPagoId(), profesional.getId())
+                    .orElseThrow(() -> new EntityNotFoundException("Medio de pago no encontrado"));
+            ingreso.setMedioPago(mp);
+        }
+        return toResponse(ingresoRepository.save(ingreso));
     }
 
     @Transactional
@@ -346,6 +369,8 @@ public class IngresoService {
             String osNombre = i.getObraSocial() != null ? i.getObraSocial().getNombre() : null;
             Long      cobroOsId    = i.getCobroObraSocial() != null ? i.getCobroObraSocial().getId()    : null;
             LocalDate cobroOsFecha = i.getCobroObraSocial() != null ? i.getCobroObraSocial().getFecha() : null;
+            String    consNombre   = i.getConsultorio()     != null ? i.getConsultorio().getNombre()    : null;
+            String    medioNombre  = i.getMedioPago()       != null ? i.getMedioPago().getNombre()      : null;
 
             // Fila INGRESO: aparece cuando hay algo cobrado (coseguro o monto particular CONFIRMADO).
             //   - OS con coseguro: una fila por el coseguro.
@@ -354,7 +379,7 @@ public class IngresoService {
             if (mostrarIngreso && !"pendiente".equals(tipoFiltro) && !"egreso".equals(tipoFiltro)) {
                 String desc = esOs && tieneCoseguro ? descBase + " · coseguro" : descBase;
                 all.add(new MovimientoResponse(i.getId(), origen, "ingreso", i.getFecha(), desc, i.getMonto(),
-                        i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre, cobroOsId, cobroOsFecha));
+                        i.getEstado() != null ? i.getEstado().name() : null, consultaId, pacienteId, osId, osNombre, cobroOsId, cobroOsFecha, consNombre, medioNombre));
             }
 
             // Fila PENDIENTE: aparece cuando la consulta está esperando el cobro batch de OS o un cobro particular.
@@ -365,24 +390,26 @@ public class IngresoService {
                 // Para OS, la fila pendiente NO muestra monto del coseguro (ya está en la fila ingreso).
                 BigDecimal montoPendiente = esOs ? null : i.getMonto();
                 all.add(new MovimientoResponse(i.getId(), origen, "pendiente", i.getFecha(), descBase, montoPendiente,
-                        EstadoIngreso.PENDIENTE.name(), consultaId, pacienteId, osId, osNombre, null, null));
+                        EstadoIngreso.PENDIENTE.name(), consultaId, pacienteId, osId, osNombre, null, null, consNombre, medioNombre));
             }
         }
         // Cobros de OS: cada uno entra como UN movimiento de tipo ingreso. Origen "cobro_os" para que
         // el front sepa que no se elimina desde acá (la eliminación vive en la pestaña Cobros).
         for (CobroObraSocial c : cobros) {
             if ("egreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
-            String osNombre = c.getObraSocial() != null ? c.getObraSocial().getNombre() : "Obra social";
-            String desc = "Cobro · " + osNombre;
-            Long   osId     = c.getObraSocial() != null ? c.getObraSocial().getId() : null;
+            String osNombre  = c.getObraSocial()  != null ? c.getObraSocial().getNombre()  : "Obra social";
+            String desc      = "Cobro · " + osNombre;
+            Long   osId      = c.getObraSocial()  != null ? c.getObraSocial().getId()      : null;
+            String consNomC  = c.getConsultorio() != null ? c.getConsultorio().getNombre() : null;
             all.add(new MovimientoResponse(c.getId(), "cobro_os", "ingreso", c.getFecha(), desc, c.getMontoRecibido(),
-                    EstadoIngreso.CONFIRMADO.name(), null, null, osId, osNombre, c.getId(), c.getFecha()));
+                    EstadoIngreso.CONFIRMADO.name(), null, null, osId, osNombre, c.getId(), c.getFecha(), consNomC, null));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
+            String consNomE = e.getConsultorio() != null ? e.getConsultorio().getNombre() : null;
             all.add(new MovimientoResponse(e.getId(), "egreso", "egreso", e.getFecha(),
                     e.getDescripcion() != null ? e.getDescripcion() : "Sin descripción",
-                    e.getMonto(), null, null, null, null, null, null, null));
+                    e.getMonto(), null, null, null, null, null, null, null, consNomE, null));
         }
 
         all.sort(Comparator.comparing(MovimientoResponse::fecha).reversed());

@@ -5,6 +5,7 @@ import com.simpleodonto.dashboard.dto.IngresoMensualDto;
 import com.simpleodonto.dashboard.dto.ProximoTurnoDto;
 import com.simpleodonto.dashboard.service.DashboardService;
 import com.simpleodonto.finanzas.domain.EstadoIngreso;
+import com.simpleodonto.consulta.domain.TipoPago;
 import com.simpleodonto.consulta.domain.Consulta;
 import com.simpleodonto.finanzas.domain.Ingreso;
 import com.simpleodonto.profesional.domain.Profesional;
@@ -48,8 +49,8 @@ public class DashboardController {
         LocalDate     finMes    = inicioMes.plusMonths(1);
         LocalDateTime inicioHoy    = hoy.atStartOfDay();
         LocalDateTime finHoy       = hoy.plusDays(1).atStartOfDay();
-        LocalDateTime inicioManana = finHoy;
-        LocalDateTime finManana    = hoy.plusDays(2).atStartOfDay();
+        LocalDateTime inicioManana       = finHoy;
+        LocalDateTime finProximos7Dias   = hoy.plusDays(8).atStartOfDay(); // mañana + 7 días
 
         // Mes seleccionado para stats de consultas (default: mes actual)
         YearMonth ymSel        = (mes != null && !mes.isBlank()) ? YearMonth.parse(mes) : YearMonth.from(hoy);
@@ -61,13 +62,14 @@ public class DashboardController {
         CompletableFuture<Long>                      fNuevos       = dashboardService.fetchPacientesNuevos(profId, inicioMes.atStartOfDay());
         CompletableFuture<Long>                      fNoVolvieron  = dashboardService.fetchPacientesNoVolvieron(profId, hoy.minusDays(90));
         CompletableFuture<Long>                      fPendHoy      = dashboardService.fetchTurnosPendientesHoy(profId, inicioHoy, finHoy);
-        CompletableFuture<Long>                      fPendManana   = dashboardService.fetchTurnosPendientesHoy(profId, inicioManana, finManana);
+        CompletableFuture<Long>                      fPendManana   = dashboardService.fetchTurnosPendientesHoy(profId, inicioManana, finProximos7Dias);
         CompletableFuture<Optional<ProximoTurnoDto>> fProximo      = dashboardService.fetchProximoTurno(profId, ahora);
         CompletableFuture<List<Ingreso>>             fIngresos     = dashboardService.fetchIngresosMes(profId, inicioMesSel, finMesSel);
         CompletableFuture<List<Consulta>>            fConsultas    = dashboardService.fetchConsultasMes(profId, inicioMesSel, finMesSel);
         CompletableFuture<String>                    fObraSocial   = dashboardService.fetchTopObraSocial(profId);
+        CompletableFuture<List<Ingreso>>             fPendHist     = dashboardService.fetchIngresosPendientesHistorico(profId);
 
-        CompletableFuture.allOf(fTotal, fNuevos, fNoVolvieron, fPendHoy, fPendManana, fProximo, fIngresos, fConsultas, fObraSocial).join();
+        CompletableFuture.allOf(fTotal, fNuevos, fNoVolvieron, fPendHoy, fPendManana, fProximo, fIngresos, fConsultas, fObraSocial, fPendHist).join();
 
         // Financiero
         List<Ingreso> ingresos  = fIngresos.get();
@@ -79,8 +81,16 @@ public class DashboardController {
                 .filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE)
                 .map(i -> i.getMonto() != null ? i.getMonto() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        long cobrosPendientes = ingresos.stream()
-                .filter(i -> i.getEstado() == EstadoIngreso.PENDIENTE).count();
+        // Cobros pendientes: histórico total (no filtrado por mes)
+        List<Ingreso> ingresosPendHist = fPendHist.get();
+        long cobrosPendientes = ingresosPendHist.size();
+        Map<String, Long> pendientesOsNombres = ingresosPendHist.stream()
+                .collect(Collectors.groupingBy(
+                        i -> i.getTipoPago() == TipoPago.OBRA_SOCIAL && i.getObraSocial() != null
+                                ? i.getObraSocial().getNombre()
+                                : "Particular",
+                        Collectors.counting()
+                ));
 
         // Productividad (reutiliza el future ya completado)
         List<Consulta> consultas = fConsultas.get();
@@ -108,7 +118,8 @@ public class DashboardController {
                 cobrado.add(pendiente), cobrado, pendiente, cobrosPendientes,
                 diaMas, fObraSocial.get(), promedio,
                 consultas.size(),
-                fPendManana.get()
+                fPendManana.get(),
+                pendientesOsNombres
         );
     }
 

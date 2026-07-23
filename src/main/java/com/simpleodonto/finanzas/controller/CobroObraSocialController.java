@@ -41,6 +41,13 @@ public class CobroObraSocialController {
         return cobroService.listarPendientesParticulares(profesional);
     }
 
+    /** Lista TODOS los ingresos pendientes de OS (todas las obras sociales y consultorios). */
+    @GetMapping("/finanzas/ingresos/pendientes-os")
+    public List<IngresoPendientePorOsResponse> listarPendientesOS(HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return cobroService.listarPendientesOS(profesional);
+    }
+
     @PostMapping("/cobros-os")
     @ResponseStatus(HttpStatus.CREATED)
     public CobroObraSocialResponse crear(

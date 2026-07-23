@@ -1,5 +1,6 @@
 package com.simpleodonto.finanzas.controller;
 
+import com.simpleodonto.finanzas.dto.ConfirmarParticularRequest;
 import com.simpleodonto.finanzas.dto.EstadisticaAnualDto;
 import com.simpleodonto.finanzas.dto.FinanzasResumenResponse;
 import com.simpleodonto.finanzas.dto.IngresoLibreRequest;
@@ -72,6 +73,15 @@ public class FinanzasController {
             HttpServletRequest request) {
         Profesional profesional = tokenService.resolve(request);
         ingresoService.eliminarLibre(id, profesional);
+    }
+
+    @PatchMapping("/ingresos/{id}/confirmar-particular")
+    public IngresoResponse confirmarParticular(
+            @PathVariable Long id,
+            @Valid @RequestBody ConfirmarParticularRequest body,
+            HttpServletRequest request) {
+        Profesional profesional = tokenService.resolve(request);
+        return ingresoService.confirmarParticular(id, body, profesional);
     }
 
     @GetMapping("/estadisticas-anuales")

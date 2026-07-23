@@ -78,6 +78,16 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
 
     List<Ingreso> findByCobroObraSocialId(Long cobroObraSocialId);
 
+    /** Todos los ingresos PENDIENTES del profesional, sin filtro de fecha (para el widget histórico del dashboard). */
+    @Query("""
+        SELECT i FROM Ingreso i
+        LEFT JOIN FETCH i.obraSocial
+        WHERE i.profesional.id = :profesionalId
+          AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.PENDIENTE
+        ORDER BY i.fecha DESC
+        """)
+    List<Ingreso> findPendientesByProfesional(@Param("profesionalId") Long profesionalId);
+
     /** Ingresos PENDIENTES con tipoPago=PARTICULAR (para la pestaña Particular del flow de registrar cobros). */
     @Query("""
         SELECT i FROM Ingreso i
@@ -88,4 +98,16 @@ public interface IngresoRepository extends JpaRepository<Ingreso, Long> {
         ORDER BY i.fecha ASC, i.id ASC
         """)
     List<Ingreso> findPendientesParticulares(@Param("profesionalId") Long profesionalId);
+
+    /** Todos los ingresos PENDIENTES de OS del profesional (todas las OS y consultorios). */
+    @Query("""
+        SELECT i FROM Ingreso i
+        LEFT JOIN i.consulta c LEFT JOIN c.paciente p
+        WHERE i.profesional.id = :profesionalId
+          AND i.estado = com.simpleodonto.finanzas.domain.EstadoIngreso.PENDIENTE
+          AND i.tipoPago = com.simpleodonto.consulta.domain.TipoPago.OBRA_SOCIAL
+          AND i.cobroObraSocial IS NULL
+        ORDER BY i.obraSocial.nombre ASC, i.fecha ASC, i.id ASC
+        """)
+    List<Ingreso> findPendientesObraSocial(@Param("profesionalId") Long profesionalId);
 }

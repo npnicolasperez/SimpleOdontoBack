@@ -1,6 +1,7 @@
 package com.simpleodonto.dashboard.dto;
 
 import java.math.BigDecimal;
+import java.util.Map;
 
 public record DashboardResponse(
         // Pacientes
@@ -26,6 +27,9 @@ public record DashboardResponse(
         // Consultas
         long consultasMes,
 
-        // Turnos mañana
-        long turnosPendientesManana
+        // Turnos próximos 7 días (siempre desde mañana, independiente del mes)
+        long turnosPendientesManana,
+
+        // Cobros OS pendientes histórico (independiente del mes) — nombre → cantidad
+        Map<String, Long> pendientesOsNombres
 ) {}

@@ -45,6 +45,14 @@ public class CobroObraSocialService {
                 .toList();
     }
 
+    /** Lista TODOS los ingresos PENDIENTES de OS del profesional (todas las OS y consultorios). */
+    public List<IngresoPendientePorOsResponse> listarPendientesOS(Profesional profesional) {
+        return ingresoRepository.findPendientesObraSocial(profesional.getId())
+                .stream()
+                .map(this::toPendienteResponse)
+                .toList();
+    }
+
     /**
      * Lista los ingresos pendientes de una OS en un consultorio puntual. Cada OS paga por separado
      * a cada consultorio del profesional, así que el flow es siempre OS + consultorio.

@@ -86,6 +86,13 @@ public class DashboardService {
 
     @Async
     @Transactional(readOnly = true)
+    public CompletableFuture<List<Ingreso>> fetchIngresosPendientesHistorico(Long profId) {
+        return CompletableFuture.completedFuture(
+                ingresoRepository.findPendientesByProfesional(profId));
+    }
+
+    @Async
+    @Transactional(readOnly = true)
     public CompletableFuture<List<Consulta>> fetchConsultasMes(Long profId, LocalDate desde, LocalDate hasta) {
         return CompletableFuture.completedFuture(
                 consultaRepository.findByProfesionalIdAndFechaBetween(profId, desde, hasta));

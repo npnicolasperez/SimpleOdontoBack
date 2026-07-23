@@ -5,7 +5,7 @@ import java.time.LocalDate;
 
 public record MovimientoResponse(
         Long       id,                    // id del Ingreso o Egreso (para acciones)
-        String     origen,                // "consulta" | "libre" | "egreso"
+        String     origen,                // "consulta" | "libre" | "egreso" | "cobro_os"
         String     tipo,                  // "ingreso" | "egreso" | "pendiente"
         LocalDate  fecha,
         String     descripcion,
@@ -16,5 +16,7 @@ public record MovimientoResponse(
         Long       obraSocialId,          // id de la obra social (solo si tipoPago=OBRA_SOCIAL)
         String     obraSocialNombre,      // nombre de la obra social (solo si tipoPago=OBRA_SOCIAL)
         Long       cobroObraSocialId,     // id del cobro batch de OS que cerró este ingreso (null si no es parte de uno)
-        LocalDate  cobroObraSocialFecha   // fecha del cobro batch (para mostrar contexto)
+        LocalDate  cobroObraSocialFecha,  // fecha del cobro batch (para mostrar contexto)
+        String     consultorioNombre,     // nombre del consultorio (para mostrar en la fila)
+        String     medioPagoNombre        // nombre del medio de pago (para mostrar en la fila)
 ) {}
