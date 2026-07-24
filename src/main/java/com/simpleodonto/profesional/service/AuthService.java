@@ -126,6 +126,15 @@ public class AuthService {
             log.warn("[confirmarPago] profesional con email {} no existe", email);
             return false;
         }
+        // Guard anti-reuso: un mismo preapproval no puede activar más de una cuenta. Como MP no nos
+        // manda external_reference, el preapproval_id (único y verificado como authorized contra MP)
+        // es la única clave para evitar que un solo pago active varias cuentas distintas.
+        var yaAsignada = profesionalRepository.findByMpPreapprovalId(preapprovalId).orElse(null);
+        if (yaAsignada != null && !yaAsignada.getId().equals(prof.getId())) {
+            log.warn("[confirmarPago] preapproval {} ya está asignada a otro profesional ({}) — no activamos a {}",
+                    preapprovalId, yaAsignada.getEmail(), email);
+            return false;
+        }
         if (prof.getEstado() != EstadoProfesional.ACTIVO) {
             prof.setEstado(EstadoProfesional.ACTIVO);
             prof.setMpPreapprovalId(preapprovalId);

@@ -30,7 +30,7 @@ public class Profesional extends BaseEntity {
      * AuthService.invitar() crea la preapproval con external_reference=email y se usa para correlacionar
      * cuando el webhook llega — aunque la fuente de verdad para vincular es el external_reference (email).
      */
-    @Column(name = "mp_preapproval_id")
+    @Column(name = "mp_preapproval_id", unique = true)
     private String mpPreapprovalId;
 
     private String matricula;
