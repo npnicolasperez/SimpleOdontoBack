@@ -4,6 +4,5 @@ import jakarta.validation.constraints.NotNull;
 
 public record CompletarPerfilRequest(
         @NotNull(message = "La especialidad es obligatoria")
-        Long especialidadId,
-        String matricula
+        Long especialidadId
 ) {}

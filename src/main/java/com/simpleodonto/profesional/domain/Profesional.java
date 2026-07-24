@@ -33,8 +33,6 @@ public class Profesional extends BaseEntity {
     @Column(name = "mp_preapproval_id", unique = true)
     private String mpPreapprovalId;
 
-    private String matricula;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "especialidad_id")
     private Especialidad especialidad;

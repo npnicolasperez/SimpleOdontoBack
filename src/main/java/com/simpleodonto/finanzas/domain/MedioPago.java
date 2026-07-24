@@ -20,4 +20,12 @@ public class MedioPago extends BaseEntity {
 
     @Column(nullable = false)
     private String nombre;
+
+    /**
+     * True para los medios "Efectivo" y "Transferencia" que se autogeneran por profesional.
+     * No pueden renombrarse ni eliminarse desde la UI.
+     */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    @Builder.Default
+    private boolean sistema = false;
 }

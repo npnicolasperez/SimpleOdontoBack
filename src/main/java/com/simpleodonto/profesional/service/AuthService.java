@@ -4,6 +4,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
+import com.simpleodonto.finanzas.service.MedioPagoService;
 import com.simpleodonto.pago.service.SuscripcionService;
 import com.simpleodonto.profesional.domain.Especialidad;
 import com.simpleodonto.profesional.domain.EstadoProfesional;
@@ -34,6 +35,7 @@ public class AuthService {
     private final AdminNotificationService  adminNotification;
     private final AdminEmails               adminEmails;
     private final SuscripcionService        suscripcionService;
+    private final MedioPagoService          medioPagoService;
 
     @Value("${google.client-id}")
     private String googleClientId;
@@ -71,13 +73,16 @@ public class AuthService {
             return toResponse(existente.get());
         }
 
-        // Cuenta tradicional con el mismo email → vincular Google ID
+        // Cuenta tradicional con el mismo email → vincular Google ID (primer login efectivo).
         var porEmail = profesionalRepository.findByEmail(email);
         if (porEmail.isPresent()) {
             Profesional p = porEmail.get();
             verificarEstado(p);
             p.setGoogleId(googleId);
             profesionalRepository.save(p);
+            // Primer login → sembramos los medios de pago de sistema ("Efectivo" y "Transferencia").
+            // Idempotente por si algo ya existe.
+            medioPagoService.bootstrapSistema(p);
             return toResponse(p);
         }
 
@@ -173,7 +178,6 @@ public class AuthService {
         Especialidad especialidad = especialidadRepository.findById(req.especialidadId())
                 .orElseThrow(() -> new EntityNotFoundException("Especialidad no encontrada"));
         profesional.setEspecialidad(especialidad);
-        profesional.setMatricula(req.matricula());
         profesional.setPerfilCompleto(true);
         profesionalRepository.save(profesional);
         return toResponse(profesional);
