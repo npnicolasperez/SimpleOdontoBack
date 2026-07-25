@@ -110,6 +110,47 @@ public class AdminNotificationService {
         }
     }
 
+    /**
+     * Lead nuevo — un profesional (no registrado) pidió que le mandemos la guía de uso. Le pasa
+     * mail + whatsapp; nosotros le respondemos a mano con el link de la doc y (opcionalmente)
+     * seguimos el contacto por whatsapp.
+     */
+    @Async
+    public void notifyLeadGuia(String email, String whatsapp, String linkGuia) {
+        var destinatarios = adminEmails.all();
+        if (destinatarios.isEmpty()) {
+            log.warn("Lead de guía recibido pero no hay admins configurados (ADMIN_EMAILS vacío)");
+            return;
+        }
+
+        String subject = "Nuevo lead — solicitó la guía de HolaDocApp";
+        String html = """
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+              <h2 style="color: #111;">Nuevo lead — solicitó la guía</h2>
+              <p style="color: #555;">Un profesional pidió la guía de uso desde la pantalla de login. Contactalo por mail o whatsapp con el link a la doc.</p>
+              <table style="border-collapse: collapse; margin-top: 12px;">
+                <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td><a href="mailto:%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #888;">WhatsApp:</td><td><a href="https://wa.me/%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
+              </table>
+
+              <div style="margin-top: 28px; padding: 16px; background: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 8px;">
+                <div style="font-weight: 600; color: #111; font-size: 13px; margin-bottom: 8px;">Link a la guía (listo para copiar)</div>
+                <code style="display: block; background: #fff; padding: 10px 12px; border-radius: 4px; border: 1px solid #e7e5e4; font-size: 13px; color: #111; word-break: break-all;">%s</code>
+              </div>
+            </div>
+            """.formatted(
+                escape(email), escape(email),
+                escape(whatsapp.replaceAll("[^0-9+]", "")),
+                escape(whatsapp),
+                escape(linkGuia));
+
+        boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
+        if (ok) {
+            log.info("Notificación de lead de guía enviada a {} admin(s) — email={}, whatsapp={}",
+                    destinatarios.size(), email, whatsapp);
+        }
+    }
+
     private static String escape(String s) {
         if (s == null) return "";
         return s.replace("&", "&amp;")

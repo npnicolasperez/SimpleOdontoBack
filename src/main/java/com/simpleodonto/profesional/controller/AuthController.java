@@ -34,6 +34,19 @@ public class AuthController {
     }
 
     /**
+     * Lead público — un profesional no registrado pide la guía de uso. Solo dispara un mail al
+     * admin con email + whatsapp para que el admin le responda a mano con el link a la doc.
+     */
+    @PostMapping("/solicitar-guia")
+    public ResponseEntity<Void> solicitarGuia(@Valid @RequestBody SolicitarGuiaRequest req) {
+        if (!turnstileService.verify(req.turnstileToken())) {
+            throw new IllegalArgumentException("Verificación anti-bot fallida");
+        }
+        authService.solicitarGuia(req.email(), req.whatsapp());
+        return ResponseEntity.ok().build();
+    }
+
+    /**
      * Llamado por el front desde /post-pago. Recibe el email del profesional + el preapproval_id
      * que MP devolvió en el query string del redirect. Valida con MP que la preapproval esté
      * authorized y activa la cuenta. Devuelve {"ok": true} si se activó (o ya estaba activa).

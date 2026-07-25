@@ -40,6 +40,14 @@ public class AuthService {
     @Value("${google.client-id}")
     private String googleClientId;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
+    // Token de la URL de la guía pública. Debe coincidir con VITE_GUIA_TOKEN del front.
+    // Para rotarlo: cambiar la env var GUIA_TOKEN en ambos servicios de Railway y redeploy.
+    @Value("${app.guia-token:2f89a8b7-fde0-4fff-af9e-f63adcad8c68}")
+    private String guiaToken;
+
     private GoogleIdTokenVerifier googleVerifier;
 
     @PostConstruct
@@ -87,6 +95,16 @@ public class AuthService {
         }
 
         throw new IllegalArgumentException("Tu cuenta no está autorizada. Contactá al administrador.");
+    }
+
+    /**
+     * Lead público — un profesional (aún no registrado) pidió que le mandemos la guía de uso.
+     * Solo notifica al admin; no crea nada en DB. El admin le responde a mano con el link.
+     */
+    public void solicitarGuia(String email, String whatsapp) {
+        String base = frontendUrl != null && !frontendUrl.isBlank() ? frontendUrl : "https://holadocapp.com";
+        String linkGuia = base.replaceAll("/$", "") + "/bienvenida/" + guiaToken;
+        adminNotification.notifyLeadGuia(email.trim(), whatsapp.trim(), linkGuia);
     }
 
     public void invitar(InvitarRequest req) {
