@@ -163,6 +163,46 @@ public class AdminNotificationService {
     }
 
     /**
+     * Mail al profesional cuando el admin aprueba su cuenta desde el mail (botón "Aprobar").
+     * Le avisa que confirmamos el pago y que ya puede loguearse con Google. Es el mail que la
+     * pantalla de éxito del registro le promete al profesional.
+     */
+    @Async
+    public void notifyProfesionalAprobado(Profesional profesional) {
+        String subject = "Tu cuenta de HolaDocApp está activa";
+        String html = """
+            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+              <div style="text-align: center; margin-bottom: 24px;">
+                <div style="width: 64px; height: 64px; border-radius: 50%%; background: #16a34a; margin: 0 auto 16px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; font-weight: 700; line-height: 64px;">✓</div>
+                <h2 style="color: #111; margin: 0;">Confirmamos tu pago — tu cuenta está lista</h2>
+              </div>
+              <p style="color: #555; line-height: 1.65; font-size: 15px;">
+                Hola %s! Recibimos y confirmamos tu pago de la suscripción mensual. Tu cuenta de HolaDoc ya está activa y podés empezar a usarla ahora mismo.
+              </p>
+              <p style="color: #555; line-height: 1.65; font-size: 15px;">
+                Para ingresar, andá a <a href="https://holadocapp.com" style="color: #111; font-weight: 600;">holadocapp.com</a> y hacé click en "Iniciar sesión con Google". La primera vez que entres te vamos a pedir que completes tu especialidad y listo — ya podés arrancar a cargar pacientes, turnos y consultas.
+              </p>
+              <div style="margin: 28px 0; text-align: center;">
+                <a href="https://holadocapp.com" style="display: inline-block; background: #111; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px;">Ingresar a HolaDoc →</a>
+              </div>
+              <p style="color: #555; line-height: 1.65; font-size: 14px;">
+                Cualquier duda que te surja mientras vas conociendo el sistema, respondé este mismo mail — estamos a tu disposición durante todo el proceso.
+              </p>
+              <p style="margin-top: 24px; color: #555; line-height: 1.5; font-size: 14px;">
+                Saludos,<br>
+                <strong>El equipo de HolaDocApp</strong><br>
+                <span style="color: #888;">holadocapp.com</span>
+              </p>
+            </div>
+            """.formatted(escape(profesional.getNombre()));
+
+        boolean ok = emailService.send(List.of(profesional.getEmail()), subject, html);
+        if (ok) {
+            log.info("Mail de aprobación enviado al profesional {}", profesional.getEmail());
+        }
+    }
+
+    /**
      * Lead nuevo — un profesional (no registrado) pidió que le mandemos la guía de uso. Le pasa
      * mail + whatsapp; nosotros le respondemos a mano con el link de la doc y (opcionalmente)
      * seguimos el contacto por whatsapp.

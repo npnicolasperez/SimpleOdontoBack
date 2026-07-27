@@ -147,6 +147,9 @@ public class AuthService {
             p.setEstado(EstadoProfesional.ACTIVO);
             profesionalRepository.save(p);
             log.info("[aprobarInvitacion] Profesional {} activado desde el mail del admin", email);
+            // Mail al profesional avisando que la cuenta está lista — esto es lo que le
+            // prometimos en la pantalla de éxito del registro. Sólo se dispara la primera vez.
+            adminNotification.notifyProfesionalAprobado(p);
         }
         return p;
     }
