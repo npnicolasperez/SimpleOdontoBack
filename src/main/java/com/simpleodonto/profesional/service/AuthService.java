@@ -120,13 +120,51 @@ public class AuthService {
                 .build();
         Profesional saved = profesionalRepository.save(nuevo);
 
-        // Generamos el init_point del checkout de MP con external_reference=email. Cuando el
-        // profesional paga desde ese link, MP crea la preapproval con ese external_reference y el
-        // webhook llega con esa data → activamos el profesional automáticamente.
-        String initPoint = suscripcionService.initPointPara(saved.getEmail()).orElse(null);
+        // ─── MP redirect deshabilitado temporalmente ───
+        // Para los primeros clientes, el admin responde manualmente al profesional con la bienvenida
+        // + link de pago, y aprueba la cuenta a mano desde el mail (botón Aprobar) cuando ve que
+        // entró el pago. Dejamos el código comentado para reactivarlo cuando escalemos.
+        // String initPoint = suscripcionService.initPointPara(saved.getEmail()).orElse(null);
+        // adminNotification.notifyProfesionalConLinkPago(saved, initPoint);
 
-        adminNotification.notifyProfesionalConLinkPago(saved, initPoint);
-        adminNotification.notifyNuevoPendiente(saved);
+        // Generamos tokens firmados (7 días, purpose scoping) para los botones aprobar/rechazar
+        // del mail del admin. El admin puede aprobar/rechazar con 1 click sin loguearse.
+        String tokenAprobar  = jwtUtil.generateActionToken(saved.getEmail(), "invitacion-aprobar");
+        String tokenRechazar = jwtUtil.generateActionToken(saved.getEmail(), "invitacion-rechazar");
+        adminNotification.notifyNuevoPendiente(saved, tokenAprobar, tokenRechazar);
+    }
+
+    /**
+     * Activa la cuenta desde el botón "Aprobar" del mail del admin. Valida el token firmado
+     * (purpose scoping evita que se use un token de otro flujo) y activa al profesional.
+     * Idempotente: si ya estaba activo, no rompe.
+     */
+    public Profesional aprobarInvitacion(String token) {
+        String email = jwtUtil.parseActionToken(token, "invitacion-aprobar");
+        Profesional p = profesionalRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("Profesional no encontrado"));
+        if (p.getEstado() != EstadoProfesional.ACTIVO) {
+            p.setEstado(EstadoProfesional.ACTIVO);
+            profesionalRepository.save(p);
+            log.info("[aprobarInvitacion] Profesional {} activado desde el mail del admin", email);
+        }
+        return p;
+    }
+
+    /**
+     * Rechaza la cuenta desde el botón "Rechazar" del mail del admin. Borra al profesional si
+     * todavía está en PENDIENTE (para liberar el email). Si ya estaba activo o rechazado, no
+     * hace nada — evita accidentes.
+     */
+    public Profesional rechazarInvitacion(String token) {
+        String email = jwtUtil.parseActionToken(token, "invitacion-rechazar");
+        Profesional p = profesionalRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("Profesional no encontrado"));
+        if (p.getEstado() == EstadoProfesional.PENDIENTE) {
+            profesionalRepository.delete(p);
+            log.info("[rechazarInvitacion] Profesional {} rechazado y borrado desde el mail del admin", email);
+        }
+        return p;
     }
 
     /**

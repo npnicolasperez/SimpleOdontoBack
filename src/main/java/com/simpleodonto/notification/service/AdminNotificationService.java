@@ -4,6 +4,7 @@ import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.AdminEmails;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -21,39 +22,86 @@ public class AdminNotificationService {
     private final EmailService emailService;
     private final AdminEmails  adminEmails;
 
+    @Value("${app.base-url}")
+    private String baseUrl;
+
     /**
-     * Avisa a los admins que un profesional se pre-registró. El admin no tiene que aprobar manualmente
-     * — el flow es: el profesional recibe link de pago, paga, MP dispara webhook, la cuenta se activa
-     * automáticamente. Este mail es solo informativo para tener visibilidad.
+     * Avisa a los admins que un profesional se pre-registró. Trae los datos + un mensaje listo
+     * para copiar y pegar en la respuesta al profesional (bienvenida + placeholder de link de pago
+     * MP) + botones "Aprobar" y "Rechazar" que actúan con 1 click (tokens firmados 7 días).
      */
     @Async
-    public void notifyNuevoPendiente(Profesional profesional) {
+    public void notifyNuevoPendiente(Profesional profesional, String tokenAprobar, String tokenRechazar) {
         var destinatarios = adminEmails.all();
         if (destinatarios.isEmpty()) {
             log.warn("Nuevo profesional PENDIENTE creado pero no hay admins configurados (ADMIN_EMAILS vacío)");
             return;
         }
 
-        String subject = "Nuevo registro pendiente de pago — HolaDocApp";
+        String subject          = "Nuevo registro pendiente — " + profesional.getNombre() + " " + profesional.getApellido();
         String googleConsoleUrl = "https://console.cloud.google.com/auth/audience?project=simpleodonto";
+        String base             = baseUrl != null && !baseUrl.isBlank() ? baseUrl.replaceAll("/$", "") : "https://api.holadocapp.com";
+        String urlAprobar       = base + "/api/auth/invitacion/aprobar?token="  + tokenAprobar;
+        String urlRechazar      = base + "/api/auth/invitacion/rechazar?token=" + tokenRechazar;
+
+        // Mensaje listo para copiar/pegar en la respuesta manual al profesional
+        String mensajeListo = """
+            Hola %s!
+
+            Bienvenido/a a HolaDoc. Recibimos tu solicitud y estamos armando tu cuenta.
+
+            Para activarla, necesitamos que completes el pago de la suscripción mensual desde el siguiente link:
+
+            [COMPLETAR CON EL LINK DE PAGO DE MERCADO PAGO]
+
+            Una vez confirmado el pago, te habilitamos el acceso a la brevedad. Vas a poder ingresar con tu cuenta de Google directamente en holadocapp.com.
+
+            Cualquier duda o consulta, respondé este mismo mail — estamos a tu disposición durante todo el proceso.
+
+            Saludos,
+            El equipo de HolaDocApp
+            holadocapp.com
+            """.formatted(escape(profesional.getNombre()));
+
         String html = """
-            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
-              <h2 style="color: #111;">Nuevo profesional pre-registrado</h2>
-              <p style="color: #555;">Se registró un profesional. Le enviamos el link de pago de la suscripción; cuando complete el pago, la cuenta se activa automáticamente.</p>
-              <table style="border-collapse: collapse; margin-top: 12px;">
+            <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
+              <h2 style="color: #111; margin-bottom: 4px;">Nuevo registro pendiente</h2>
+              <p style="color: #555; margin-top: 0;">Un profesional se registró. Copiá el mensaje de abajo para responderle, y cuando confirmes el pago vení acá y clickeá <strong>Aprobar</strong>.</p>
+
+              <table style="border-collapse: collapse; margin-top: 16px;">
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Nombre:</td><td><strong>%s %s</strong></td></tr>
-                <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td>%s</td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td><a href="mailto:%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
               </table>
 
-              <div style="margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
-                <div style="font-weight: 600; color: #92400e; font-size: 14px; margin-bottom: 8px;">⚠️ Recordatorio: Google Calendar test user</div>
-                <p style="color: #555; font-size: 13px; line-height: 1.5; margin: 0 0 12px;">
+              <div style="margin-top: 24px; padding: 16px; background: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 8px;">
+                <div style="font-weight: 600; color: #111; font-size: 13px; margin-bottom: 10px;">Mensaje listo para copiar y pegar</div>
+                <pre style="margin: 0; padding: 14px 16px; background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; color: #111; white-space: pre-wrap; word-break: break-word;">%s</pre>
+                <div style="margin-top: 10px; font-size: 11px; color: #888;">Tip: seleccionalo todo (⌘A / Ctrl+A) y copiá. Reemplazá el placeholder por el link real de MP.</div>
+              </div>
+
+              <div style="margin-top: 28px; padding: 20px; background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; text-align: center;">
+                <div style="font-weight: 600; color: #111; font-size: 14px; margin-bottom: 6px;">Cuando confirmes el pago</div>
+                <p style="color: #555; font-size: 13px; margin: 0 0 16px; line-height: 1.5;">Clickeá <strong>Aprobar</strong> y la cuenta queda activa al instante. Si finalmente no vas a habilitarla, usá <strong>Rechazar</strong> para descartar el registro.</p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                  <td style="padding-right: 8px;">
+                    <a href="%s" style="display: inline-block; background: #16a34a; color: #fff; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px;">✓ Aprobar cuenta</a>
+                  </td>
+                  <td style="padding-left: 8px;">
+                    <a href="%s" style="display: inline-block; background: #fff; color: #dc2626; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 14px; border: 1.5px solid #dc2626;">✕ Rechazar</a>
+                  </td>
+                </tr></table>
+                <div style="margin-top: 12px; font-size: 11px; color: #888;">Los botones expiran en 7 días.</div>
+              </div>
+
+              <div style="margin-top: 24px; padding: 16px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;">
+                <div style="font-weight: 600; color: #92400e; font-size: 13px; margin-bottom: 8px;">⚠️ Recordatorio: Google Calendar test user</div>
+                <p style="color: #555; font-size: 12px; line-height: 1.5; margin: 0 0 10px;">
                   Mientras la app esté en modo Testing en Google, para que este profesional pueda conectar Google Calendar tenés que agregarlo como <strong>test user</strong>.
                 </p>
-                <p style="color: #555; font-size: 13px; line-height: 1.5; margin: 0 0 14px;">
+                <p style="color: #555; font-size: 12px; line-height: 1.5; margin: 0 0 12px;">
                   Email a agregar: <code style="background: #fff; padding: 2px 6px; border-radius: 3px; border: 1px solid #fde68a;">%s</code>
                 </p>
-                <a href="%s" style="display: inline-block; background: #fff; color: #92400e; padding: 8px 14px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; border: 1px solid #fde68a;">Abrir Google Auth Platform →</a>
+                <a href="%s" style="display: inline-block; background: #fff; color: #92400e; padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 12px; border: 1px solid #fde68a;">Abrir Google Auth Platform →</a>
               </div>
             </div>
             """.formatted(
@@ -61,11 +109,15 @@ public class AdminNotificationService {
                 escape(profesional.getApellido()),
                 escape(profesional.getEmail()),
                 escape(profesional.getEmail()),
+                escape(mensajeListo),
+                escape(urlAprobar),
+                escape(urlRechazar),
+                escape(profesional.getEmail()),
                 googleConsoleUrl);
 
         boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
         if (ok) {
-            log.info("Notificación de nuevo PENDIENTE enviada a {} admin(s)", destinatarios.size());
+            log.info("Notificación de nuevo PENDIENTE enviada a {} admin(s) — {}", destinatarios.size(), profesional.getEmail());
         }
     }
 
@@ -138,8 +190,8 @@ public class AdminNotificationService {
 
             Si tenés preguntas o querés que te lo muestre en vivo, respondé este mail y coordinamos una videollamada corta.
 
-            Un saludo,
-            Nicolás — HolaDoc
+            Saludos,
+            El equipo de HolaDocApp
             """.formatted(linkGuia);
 
         String html = """

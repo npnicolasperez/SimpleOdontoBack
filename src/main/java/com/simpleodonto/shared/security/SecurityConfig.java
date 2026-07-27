@@ -36,6 +36,7 @@ public class SecurityConfig {
                 .requestMatchers("/error").permitAll()
                 .requestMatchers(HttpMethod.GET,    "/api/especialidades/**").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/auth/google", "/api/auth/registro", "/api/auth/confirmar-pago", "/api/auth/solicitar-guia").permitAll()
+                .requestMatchers(HttpMethod.GET,    "/api/auth/invitacion/aprobar", "/api/auth/invitacion/rechazar").permitAll()
                 .requestMatchers(HttpMethod.GET,    "/api/calendar/callback").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/calendar/webhook").permitAll()
                 .requestMatchers(HttpMethod.POST,   "/api/mp/webhook/test", "/api/mp/webhook/prod").permitAll()

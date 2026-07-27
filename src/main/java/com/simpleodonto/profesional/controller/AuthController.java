@@ -66,6 +66,69 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Aprobar/rechazar una invitación desde el mail del admin. Sin login — el token firmado (7 días,
+     * purpose scoping) valida la acción. Devuelve una HTML mínima porque la request viene desde un
+     * click en un mail cliente, no desde la SPA.
+     */
+    @GetMapping(value = "/invitacion/aprobar", produces = org.springframework.http.MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> aprobarInvitacion(@RequestParam String token) {
+        try {
+            var p = authService.aprobarInvitacion(token);
+            return ResponseEntity.ok(renderAccionOk(
+                    "Cuenta aprobada",
+                    "La cuenta de <strong>" + escapeHtml(p.getNombre()) + " " + escapeHtml(p.getApellido()) + "</strong> quedó activada. Ya puede loguearse con Google en <a href=\"https://holadocapp.com\">holadocapp.com</a>.",
+                    "#16a34a", "✓"));
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(renderAccionError("No se pudo aprobar", e.getMessage()));
+        }
+    }
+
+    @GetMapping(value = "/invitacion/rechazar", produces = org.springframework.http.MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<String> rechazarInvitacion(@RequestParam String token) {
+        try {
+            var p = authService.rechazarInvitacion(token);
+            return ResponseEntity.ok(renderAccionOk(
+                    "Registro rechazado",
+                    "El registro de <strong>" + escapeHtml(p.getNombre()) + " " + escapeHtml(p.getApellido()) + "</strong> fue descartado. El email vuelve a estar disponible para un futuro registro.",
+                    "#dc2626", "✕"));
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body(renderAccionError("No se pudo rechazar", e.getMessage()));
+        }
+    }
+
+    private static String renderAccionOk(String titulo, String mensajeHtml, String color, String icono) {
+        return """
+            <!doctype html><html lang="es"><head><meta charset="utf-8"><title>%s · HolaDoc</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f6f4; margin: 0; padding: 40px 20px; min-height: 100vh;">
+              <div style="max-width: 480px; margin: 40px auto; background: #fff; border: 1px solid #e0e0dc; border-radius: 16px; padding: 40px 32px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.04);">
+                <div style="width: 64px; height: 64px; border-radius: 50%%; background: %s; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; font-weight: 700; line-height: 1;">%s</div>
+                <h1 style="margin: 0 0 12px; font-size: 22px; letter-spacing: -0.02em; color: #111;">%s</h1>
+                <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">%s</p>
+              </div>
+            </body></html>
+            """.formatted(titulo, color, icono, titulo, mensajeHtml);
+    }
+
+    private static String renderAccionError(String titulo, String detalle) {
+        return """
+            <!doctype html><html lang="es"><head><meta charset="utf-8"><title>%s · HolaDoc</title><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f6f4; margin: 0; padding: 40px 20px; min-height: 100vh;">
+              <div style="max-width: 480px; margin: 40px auto; background: #fff; border: 1px solid #e0e0dc; border-radius: 16px; padding: 40px 32px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.04);">
+                <div style="width: 64px; height: 64px; border-radius: 50%%; background: #dc2626; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 32px; font-weight: 700; line-height: 1;">!</div>
+                <h1 style="margin: 0 0 12px; font-size: 22px; letter-spacing: -0.02em; color: #111;">%s</h1>
+                <p style="margin: 0; font-size: 14px; color: #555; line-height: 1.6;">%s</p>
+                <p style="margin-top: 16px; font-size: 12px; color: #888;">Puede ser que el token haya expirado (7 días) o que la acción ya se haya ejecutado.</p>
+              </div>
+            </body></html>
+            """.formatted(titulo, titulo, escapeHtml(detalle != null ? detalle : "Error desconocido"));
+    }
+
+    private static String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+    }
+
     @PutMapping("/completar-perfil")
     public ResponseEntity<AuthResponse> completarPerfil(
             @Valid @RequestBody CompletarPerfilRequest req,
