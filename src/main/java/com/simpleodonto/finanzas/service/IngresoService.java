@@ -397,12 +397,16 @@ public class IngresoService {
         // el front sepa que no se elimina desde acá (la eliminación vive en la pestaña Cobros).
         for (CobroObraSocial c : cobros) {
             if ("egreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;
-            String osNombre  = c.getObraSocial()  != null ? c.getObraSocial().getNombre()  : "Obra social";
-            String desc      = "Cobro · " + osNombre;
-            Long   osId      = c.getObraSocial()  != null ? c.getObraSocial().getId()      : null;
-            String consNomC  = c.getConsultorio() != null ? c.getConsultorio().getNombre() : null;
+            String osNombre    = c.getObraSocial()  != null ? c.getObraSocial().getNombre()  : "Obra social";
+            String desc        = "Cobro · " + osNombre;
+            Long   osId        = c.getObraSocial()  != null ? c.getObraSocial().getId()      : null;
+            String consNomC    = c.getConsultorio() != null ? c.getConsultorio().getNombre() : null;
+            // Antes se pasaba `null` como medioNombre — hacía que TODOS los cobros OS aparecieran
+            // como "Sin especificar" en el gráfico "Ingresos por medio de pago", aunque el cobro
+            // tuviera un medio cargado en la DB.
+            String medioNomC   = c.getMedioPago()   != null ? c.getMedioPago().getNombre()   : null;
             all.add(new MovimientoResponse(c.getId(), "cobro_os", "ingreso", c.getFecha(), desc, c.getMontoRecibido(),
-                    EstadoIngreso.CONFIRMADO.name(), null, null, osId, osNombre, c.getId(), c.getFecha(), consNomC, null));
+                    EstadoIngreso.CONFIRMADO.name(), null, null, osId, osNombre, c.getId(), c.getFecha(), consNomC, medioNomC));
         }
         for (Egreso e : egresos) {
             if ("ingreso".equals(tipoFiltro) || "pendiente".equals(tipoFiltro)) continue;

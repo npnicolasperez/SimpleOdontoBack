@@ -101,9 +101,8 @@ public class CobroObraSocialService {
         Consultorio consultorio = consultorioRepository.findByIdAndProfesionalId(req.consultorioId(), profesional.getId())
                 .orElseThrow(() -> new EntityNotFoundException("Consultorio no encontrado"));
 
-        MedioPago medioPago = req.medioPagoId() != null
-                ? medioPagoRepository.findByIdAndProfesionalId(req.medioPagoId(), profesional.getId()).orElse(null)
-                : null;
+        MedioPago medioPago = medioPagoRepository.findByIdAndProfesionalId(req.medioPagoId(), profesional.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Medio de pago no encontrado"));
 
         CobroObraSocial cobro = CobroObraSocial.builder()
                 .profesional(profesional)

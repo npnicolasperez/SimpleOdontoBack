@@ -124,25 +124,44 @@ public class AdminNotificationService {
         }
 
         String subject = "Nuevo lead — solicitó la guía de HolaDocApp";
+
+        // Mensaje "listo para pegar" que el admin manda al lead (por mail o WhatsApp).
+        // Va sin caracteres especiales de HTML para que copie limpio.
+        String mensajeListo = """
+            Hola!
+
+            Gracias por tu interés en HolaDoc. Te comparto la guía visual del sistema para que la veas sin registrarte:
+
+            %s
+
+            Encontrarás: agenda, historia clínica y estudios (incluye cefalometría para odontólogos) y todo lo financiero: pagos, obras sociales, coseguros y balance.
+
+            Si tenés preguntas o querés que te lo muestre en vivo, respondé este mail y coordinamos una videollamada corta.
+
+            Un saludo,
+            Nicolás — HolaDoc
+            """.formatted(linkGuia);
+
         String html = """
-            <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+            <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
               <h2 style="color: #111;">Nuevo lead — solicitó la guía</h2>
-              <p style="color: #555;">Un profesional pidió la guía de uso desde la pantalla de login. Contactalo por mail o whatsapp con el link a la doc.</p>
+              <p style="color: #555;">Un profesional pidió la guía de uso desde la pantalla de login. Contactalo por mail o WhatsApp copiando el mensaje de abajo.</p>
               <table style="border-collapse: collapse; margin-top: 12px;">
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td><a href="mailto:%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">WhatsApp:</td><td><a href="https://wa.me/%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
               </table>
 
               <div style="margin-top: 28px; padding: 16px; background: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 8px;">
-                <div style="font-weight: 600; color: #111; font-size: 13px; margin-bottom: 8px;">Link a la guía (listo para copiar)</div>
-                <code style="display: block; background: #fff; padding: 10px 12px; border-radius: 4px; border: 1px solid #e7e5e4; font-size: 13px; color: #111; word-break: break-all;">%s</code>
+                <div style="font-weight: 600; color: #111; font-size: 13px; margin-bottom: 10px;">Mensaje listo para copiar y pegar</div>
+                <pre style="margin: 0; padding: 14px 16px; background: #fff; border: 1px solid #e7e5e4; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; color: #111; white-space: pre-wrap; word-break: break-word;">%s</pre>
+                <div style="margin-top: 10px; font-size: 11px; color: #888;">Tip: seleccionalo todo (⌘A / Ctrl+A) y copiá (⌘C / Ctrl+C).</div>
               </div>
             </div>
             """.formatted(
                 escape(email), escape(email),
                 escape(whatsapp.replaceAll("[^0-9+]", "")),
                 escape(whatsapp),
-                escape(linkGuia));
+                escape(mensajeListo));
 
         boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
         if (ok) {

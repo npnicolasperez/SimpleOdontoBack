@@ -26,6 +26,7 @@ public record CobroObraSocialRequest(
         @DecimalMin(value = "0", message = "El monto recibido no puede ser negativo")
         BigDecimal montoRecibido,
 
+        @NotNull(message = "El medio de pago es obligatorio")
         Long medioPagoId,
 
         String descripcion,
