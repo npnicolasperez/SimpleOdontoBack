@@ -56,6 +56,11 @@ public class AdminNotificationService {
 
             Importante: una vez que hayas realizado el pago, te pedimos que respondas este mismo mail con un breve "Listo, pagué" (o similar). Queremos activar tu cuenta lo antes posible, sin tener que esperar la confirmación automática de Mercado Pago.
 
+            Cómo funciona la suscripción:
+            • Tenés 7 días de prueba gratis desde que activamos tu cuenta, para que puedas conocer todas las funcionalidades con tranquilidad.
+            • El primer débito automático se realiza recién el día 5 del mes siguiente, y a partir de ahí cada día 5 de cada mes.
+            • No hay ningún tipo de compromiso ni permanencia mínima: si en algún momento decidís no continuar, podés solicitar la baja respondiendo este mismo mail y cancelamos la suscripción de inmediato.
+
             Cuando confirmemos tu pago vas a recibir un segundo mail avisándote que tu cuenta ya está activa, y desde ese momento podrás ingresar con tu cuenta de Google directamente en holadocapp.com.
 
             Cualquier duda o consulta, respondé este mismo mail — estamos a tu disposición durante todo el proceso.
