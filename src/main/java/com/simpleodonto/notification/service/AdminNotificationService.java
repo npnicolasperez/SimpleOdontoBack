@@ -54,7 +54,9 @@ public class AdminNotificationService {
 
             [COMPLETAR CON EL LINK DE PAGO DE MERCADO PAGO]
 
-            Una vez confirmado el pago, te habilitamos el acceso a la brevedad. Vas a poder ingresar con tu cuenta de Google directamente en holadocapp.com.
+            Importante: una vez que hayas realizado el pago, te pedimos que respondas este mismo mail con un breve "Listo, pagué" (o similar). De esa forma podemos verificarlo y habilitar tu cuenta a la brevedad, sin depender de los tiempos de notificación de Mercado Pago (que a veces demoran o no llegan).
+
+            Cuando confirmemos tu pago vas a recibir un segundo mail avisándote que tu cuenta ya está activa, y desde ese momento podrás ingresar con tu cuenta de Google directamente en holadocapp.com.
 
             Cualquier duda o consulta, respondé este mismo mail — estamos a tu disposición durante todo el proceso.
 
