@@ -222,20 +222,28 @@ public class AdminNotificationService {
             return;
         }
 
-        String subject = "Nuevo lead — solicitó la guía de HolaDocApp";
+        String subject = "Nuevo lead — quiere probar HolaDoc";
 
         // Mensaje "listo para pegar" que el admin manda al lead (por mail o WhatsApp).
         // Va sin caracteres especiales de HTML para que copie limpio.
         String mensajeListo = """
             Hola!
 
-            Gracias por tu interés en HolaDoc. Te comparto la guía visual del sistema para que la veas sin registrarte:
+            Gracias por tu interés en HolaDoc. Te compartimos un link para que puedas conocer el sistema sin registrarte y sin necesidad de instalar nada:
 
             %s
 
-            Encontrarás: agenda, historia clínica y estudios (incluye cefalometría para odontólogos) y todo lo financiero: pagos, obras sociales, coseguros y balance.
+            Allí vas a encontrar dos formas de conocerlo:
 
-            Si tenés preguntas o querés que te lo muestre en vivo, respondé este mail y coordinamos una videollamada corta.
+            → Demo interactiva (recomendado)
+              Ingresás directamente a la aplicación con datos de ejemplo cargados. Podés navegar, registrar una consulta, crear un turno y trazar sobre una radiografía — todo funcionando de verdad, no es un video. En cuestión de minutos ya estás dentro del sistema.
+
+            → Guía visual
+              Si preferís ver un recorrido antes de utilizarlo, encontrarás un tour con capturas de cada pantalla y una breve explicación de sus funcionalidades.
+
+            Podés comenzar por la opción que prefieras, sin ningún compromiso.
+
+            Ante cualquier consulta, respondé este mismo mail y te contestamos a la brevedad. Si querés que te lo mostremos en vivo por videollamada, coordinamos el horario que mejor te acomode.
 
             Saludos,
             El equipo de HolaDocApp
@@ -243,8 +251,8 @@ public class AdminNotificationService {
 
         String html = """
             <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
-              <h2 style="color: #111;">Nuevo lead — solicitó la guía</h2>
-              <p style="color: #555;">Un profesional pidió la guía de uso desde la pantalla de login. Contactalo por mail o WhatsApp copiando el mensaje de abajo.</p>
+              <h2 style="color: #111;">Nuevo lead — quiere probar HolaDoc</h2>
+              <p style="color: #555;">Un profesional pidió conocer HolaDoc desde la pantalla de login. Contactalo por mail o WhatsApp copiando el mensaje de abajo.</p>
               <table style="border-collapse: collapse; margin-top: 12px;">
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td><a href="mailto:%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">WhatsApp:</td><td><a href="https://wa.me/%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
