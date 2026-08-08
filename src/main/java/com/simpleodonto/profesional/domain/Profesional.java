@@ -63,4 +63,14 @@ public class Profesional extends BaseEntity {
 
     @Column(name = "google_calendar_sync_token")
     private String googleCalendarSyncToken;
+
+    /**
+     * Plan que eligió en la landing al solicitar acceso (MENSUAL o ANUAL). Es la "intención"
+     * del profesional al registrarse — no la suscripción activa. Sirve al admin para saber qué
+     * cobrarle en la activación manual, y en el futuro para preseleccionar el plan al armar el
+     * link de MP. Nullable porque los registros previos a esta feature no lo tienen.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_solicitado", columnDefinition = "varchar(20)")
+    private PlanSolicitado planSolicitado;
 }

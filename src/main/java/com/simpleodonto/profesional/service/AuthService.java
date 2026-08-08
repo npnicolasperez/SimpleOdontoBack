@@ -117,6 +117,7 @@ public class AuthService {
                 .email(req.email())
                 .perfilCompleto(false)
                 .estado(EstadoProfesional.PENDIENTE)
+                .planSolicitado(req.plan())
                 .build();
         Profesional saved = profesionalRepository.save(nuevo);
 

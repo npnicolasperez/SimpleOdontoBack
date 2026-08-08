@@ -29,7 +29,7 @@ public class AuthController {
         if (!turnstileService.verify(req.turnstileToken())) {
             throw new IllegalArgumentException("Verificación anti-bot fallida");
         }
-        authService.invitar(new InvitarRequest(req.email(), req.nombre(), req.apellido()));
+        authService.invitar(new InvitarRequest(req.email(), req.nombre(), req.apellido(), req.plan()));
         return ResponseEntity.ok().build();
     }
 

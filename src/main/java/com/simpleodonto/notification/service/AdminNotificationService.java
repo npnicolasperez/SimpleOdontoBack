@@ -1,5 +1,6 @@
 package com.simpleodonto.notification.service;
 
+import com.simpleodonto.profesional.domain.PlanSolicitado;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.AdminEmails;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,14 @@ public class AdminNotificationService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    // Precios de los planes — fuente de verdad del back. Cambiar acá si actualiza el pricing;
+    // el front tiene su propia copia en App.jsx (constantes PLAN_MENSUAL_PRECIO / PLAN_ANUAL_PRECIO).
+    private static final int PLAN_MENSUAL_PRECIO = 28_900;
+    private static final int PLAN_ANUAL_PRECIO   = 21_900;
+    private static final int PLAN_ANUAL_TOTAL    = PLAN_ANUAL_PRECIO * 12;
+    private static final int PLAN_AHORRO_PCT     = Math.round((1f - (float) PLAN_ANUAL_PRECIO / PLAN_MENSUAL_PRECIO) * 100);
+    private static String fmtPrecio(int n) { return String.format("%,d", n).replace(',', '.'); }
+
     /**
      * Avisa a los admins que un profesional se pre-registró. Trae los datos + un mensaje listo
      * para copiar y pegar en la respuesta al profesional (bienvenida + placeholder de link de pago
@@ -44,13 +53,36 @@ public class AdminNotificationService {
         String urlAprobar       = base + "/api/auth/invitacion/aprobar?token="  + tokenAprobar;
         String urlRechazar      = base + "/api/auth/invitacion/rechazar?token=" + tokenRechazar;
 
+        // Copy plan-específico. Si el registro es previo a esta feature (plan null), asumimos mensual.
+        PlanSolicitado plan = profesional.getPlanSolicitado() != null ? profesional.getPlanSolicitado() : PlanSolicitado.MENSUAL;
+        String planLabelAdmin;   // Para el panel del admin (con precio)
+        String planFraseCobro;   // Para el mensaje al cliente ("... del plan mensual ($31.900)")
+        String planBulletCobro;  // Bullet en "Cómo funciona la suscripción"
+        switch (plan) {
+            case ANUAL -> {
+                planLabelAdmin  = "Anual — $" + fmtPrecio(PLAN_ANUAL_PRECIO) + "/mes ($" + fmtPrecio(PLAN_ANUAL_TOTAL) + " al año, pago único)";
+                planFraseCobro  = "del plan anual ($" + fmtPrecio(PLAN_ANUAL_TOTAL) + " por 12 meses, ahorro de ~" + PLAN_AHORRO_PCT + "% vs mensual)";
+                planBulletCobro = "Es un único pago por el año completo; no hay renovación automática hasta cumplir los 12 meses.";
+            }
+            case MENSUAL -> {
+                planLabelAdmin  = "Mensual — $" + fmtPrecio(PLAN_MENSUAL_PRECIO) + "/mes";
+                planFraseCobro  = "del plan mensual ($" + fmtPrecio(PLAN_MENSUAL_PRECIO) + " por mes)";
+                planBulletCobro = "El primer débito automático se realiza recién el día 5 del mes siguiente, y a partir de ahí cada día 5 de cada mes.";
+            }
+            default -> {
+                planLabelAdmin  = "No especificado";
+                planFraseCobro  = "de la suscripción";
+                planBulletCobro = "El primer débito automático se realiza recién el día 5 del mes siguiente, y a partir de ahí cada día 5 de cada mes.";
+            }
+        }
+
         // Mensaje listo para copiar/pegar en la respuesta manual al profesional
         String mensajeListo = """
             Hola %s!
 
             Bienvenido/a a HolaDoc. Recibimos tu solicitud y estamos armando tu cuenta.
 
-            Para activarla, necesitamos que completes el pago de la suscripción mensual desde el siguiente link:
+            Para activarla, necesitamos que completes el pago %s desde el siguiente link:
 
             [COMPLETAR CON EL LINK DE PAGO DE MERCADO PAGO]
 
@@ -58,7 +90,7 @@ public class AdminNotificationService {
 
             Cómo funciona la suscripción:
             • Tenés 7 días de prueba gratis desde que activamos tu cuenta, para que puedas conocer todas las funcionalidades con tranquilidad.
-            • El primer débito automático se realiza recién el día 5 del mes siguiente, y a partir de ahí cada día 5 de cada mes.
+            • %s
             • No hay ningún tipo de compromiso ni permanencia mínima: si en algún momento decidís no continuar, podés solicitar la baja respondiendo este mismo mail y cancelamos la suscripción de inmediato.
 
             Cuando confirmemos tu pago vas a recibir un segundo mail avisándote que tu cuenta ya está activa, y desde ese momento podrás ingresar con tu cuenta de Google directamente en holadocapp.com.
@@ -68,7 +100,7 @@ public class AdminNotificationService {
             Saludos,
             El equipo de HolaDocApp
             holadocapp.com
-            """.formatted(escape(profesional.getNombre()));
+            """.formatted(escape(profesional.getNombre()), planFraseCobro, planBulletCobro);
 
         String html = """
             <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto;">
@@ -78,6 +110,7 @@ public class AdminNotificationService {
               <table style="border-collapse: collapse; margin-top: 16px;">
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Nombre:</td><td><strong>%s %s</strong></td></tr>
                 <tr><td style="padding: 4px 12px 4px 0; color: #888;">Email:</td><td><a href="mailto:%s" style="color: #111; font-weight: 600;">%s</a></td></tr>
+                <tr><td style="padding: 4px 12px 4px 0; color: #888;">Plan solicitado:</td><td><strong style="color: #111;">%s</strong></td></tr>
               </table>
 
               <div style="margin-top: 24px; padding: 16px; background: #f5f5f4; border: 1px solid #e7e5e4; border-radius: 8px;">
@@ -116,6 +149,7 @@ public class AdminNotificationService {
                 escape(profesional.getApellido()),
                 escape(profesional.getEmail()),
                 escape(profesional.getEmail()),
+                escape(planLabelAdmin),
                 escape(mensajeListo),
                 escape(urlAprobar),
                 escape(urlRechazar),
