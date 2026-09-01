@@ -1,5 +1,6 @@
 package com.simpleodonto.notification.service;
 
+import com.simpleodonto.admin.dto.AdminMetricsReport;
 import com.simpleodonto.profesional.domain.PlanSolicitado;
 import com.simpleodonto.profesional.domain.Profesional;
 import com.simpleodonto.shared.security.AdminEmails;
@@ -309,6 +310,150 @@ public class AdminNotificationService {
             log.info("Notificación de lead de guía enviada a {} admin(s) — email={}, whatsapp={}",
                     destinatarios.size(), email, whatsapp);
         }
+    }
+
+    /**
+     * Reporte diario de métricas de producción al admin. Se dispara desde AdminMetricsService
+     * en un @Scheduled que corre 1x/día a las 08:00 AR.
+     */
+    @Async
+    public void notifyDailyStats(AdminMetricsReport m) {
+        var destinatarios = adminEmails.all();
+        if (destinatarios.isEmpty()) {
+            log.warn("Reporte diario generado pero no hay admins configurados (ADMIN_EMAILS vacío)");
+            return;
+        }
+
+        String fecha = java.time.LocalDate.now(java.time.ZoneId.of("America/Argentina/Buenos_Aires")).toString();
+        String subject = "📊 Reporte diario HolaDoc — " + fecha;
+
+        String html = """
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 640px; margin: 0 auto; color: #111;">
+              <h2 style="margin: 0 0 4px 0; color: #111;">📊 Reporte diario HolaDoc</h2>
+              <div style="color: #888; font-size: 13px; margin-bottom: 24px;">%s · Buenos Aires</div>
+
+              %s
+              %s
+              %s
+            </div>
+            """.formatted(
+                escape(fecha),
+                sectionVolumen(m),
+                sectionIntegraciones(m),
+                sectionActividad(m)
+            );
+
+        boolean ok = emailService.send(destinatarios.stream().toList(), subject, html);
+        if (ok) {
+            log.info("[AdminMetrics] Reporte diario enviado a {} admin(s)", destinatarios.size());
+        }
+    }
+
+    private static String sectionVolumen(AdminMetricsReport m) {
+        return """
+            <div style="margin-bottom: 28px; padding: 16px 20px; background: #f9f9f7; border: 1px solid #e7e5e4; border-radius: 10px;">
+              <h3 style="margin: 0 0 12px 0; color: #111; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em;">Volumen</h3>
+              <table style="width: 100%%; border-collapse: collapse; font-size: 13px;">
+                <tr><td style="padding: 6px 0; color: #666; width: 40%%;">Profesionales</td>
+                    <td style="padding: 6px 0; font-weight: 600;">%d activos · %d pendientes · %d suspendidos</td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Pacientes</td><td style="padding: 6px 0; font-weight: 600;">%d</td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Consultas</td>
+                    <td style="padding: 6px 0; font-weight: 600;">%d total <span style="color:#888;font-weight:normal;">(%d particulares · %d obra social)</span></td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Turnos</td><td style="padding: 6px 0; font-weight: 600;">%d</td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Ingresos</td>
+                    <td style="padding: 6px 0; font-weight: 600;">%d total <span style="color:#888;font-weight:normal;">(%d confirmados · %d pendientes)</span></td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Egresos</td><td style="padding: 6px 0; font-weight: 600;">%d</td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Estudios</td><td style="padding: 6px 0; font-weight: 600;">%d</td></tr>
+                <tr><td style="padding: 6px 0; color: #666;">Archivos adjuntos</td>
+                    <td style="padding: 6px 0; font-weight: 600;">%d <span style="color:#888;font-weight:normal;">(%s MB)</span></td></tr>
+              </table>
+              <div style="margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e0e0dc;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Emails · Activos (%d)</div>
+                <div style="font-size: 12px; color: #333; line-height: 1.5;">%s</div>
+                %s
+                %s
+              </div>
+            </div>
+            """.formatted(
+                m.profActivos(), m.profPendientes(), m.profSuspendidos(),
+                m.pacientes(),
+                m.consultasTotal(), m.consultasParticulares(), m.consultasObraSocial(),
+                m.turnos(),
+                m.ingresosTotal(), m.ingresosConfirmados(), m.ingresosPendientes(),
+                m.egresos(),
+                m.estudios(),
+                m.archivosCant(), String.format(java.util.Locale.ROOT, "%.2f", m.archivosMb()),
+                m.profActivos(),
+                m.mailsActivos().isEmpty() ? "<em style='color:#aaa;'>(ninguno)</em>" : escape(String.join(", ", m.mailsActivos())),
+                m.profPendientes() > 0
+                    ? "<div style='font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 12px; margin-bottom: 6px;'>Emails · Pendientes (" + m.profPendientes() + ")</div><div style='font-size: 12px; color: #333; line-height: 1.5;'>" + escape(String.join(", ", m.mailsPendientes())) + "</div>"
+                    : "",
+                m.profSuspendidos() > 0
+                    ? "<div style='font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 12px; margin-bottom: 6px;'>Emails · Suspendidos (" + m.profSuspendidos() + ")</div><div style='font-size: 12px; color: #333; line-height: 1.5;'>" + escape(String.join(", ", m.mailsSuspendidos())) + "</div>"
+                    : ""
+            );
+    }
+
+    private static String sectionIntegraciones(AdminMetricsReport m) {
+        String whHtml = m.webhooksCaidos().isEmpty()
+                ? "<div style='font-size: 12px; color: #16a34a;'>✓ Ninguno caído</div>"
+                : m.webhooksCaidos().stream()
+                    .map(w -> "<tr><td style='padding: 4px 8px 4px 0; color: #dc2626;'>⚠️ " + escape(w.email()) + "</td>" +
+                              "<td style='padding: 4px 0; color: #666; font-size: 11px;'>" +
+                              (w.vencidoDesde() != null ? "vencido desde " + w.vencidoDesde() : "sin fecha de expiración registrada") +
+                              "</td></tr>")
+                    .reduce("<table style='width:100%; font-size: 12px; margin-top: 4px;'>", (a, b) -> a + b) + "</table>";
+
+        return """
+            <div style="margin-bottom: 28px; padding: 16px 20px; background: #f9f9f7; border: 1px solid #e7e5e4; border-radius: 10px;">
+              <h3 style="margin: 0 0 12px 0; color: #111; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em;">Integraciones</h3>
+              <div style="font-size: 13px; margin-bottom: 12px;">
+                <span style="color: #666;">Google Calendar conectado:</span>
+                <strong>%d profesional(es)</strong>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Webhooks caídos</div>
+                %s
+              </div>
+            </div>
+            """.formatted(m.gcalConectados(), whHtml);
+    }
+
+    private static String sectionActividad(AdminMetricsReport m) {
+        String topHtml = m.top5Semana().isEmpty()
+                ? "<div style='font-size: 12px; color: #888;'><em>(sin actividad esta semana)</em></div>"
+                : m.top5Semana().stream()
+                    .map(t -> "<tr><td style='padding: 4px 8px 4px 0; font-size: 12px;'>" + escape(t.email()) + "</td>" +
+                              "<td style='padding: 4px 0; font-size: 12px; font-weight: 700; color: #111;'>" + t.acciones() + " acciones</td></tr>")
+                    .reduce("<table style='width:100%; margin-top: 4px;'>", (a, b) -> a + b) + "</table>";
+
+        return """
+            <div style="margin-bottom: 28px; padding: 16px 20px; background: #f9f9f7; border: 1px solid #e7e5e4; border-radius: 10px;">
+              <h3 style="margin: 0 0 12px 0; color: #111; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em;">Actividad últimos 7 días</h3>
+
+              <div style="margin-bottom: 14px;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Activos (%d)</div>
+                <div style="font-size: 12px; color: #333; line-height: 1.5;">%s</div>
+              </div>
+
+              <div style="margin-bottom: 14px;">
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Inactivos hace &gt;7d — potencial churn (%d)</div>
+                <div style="font-size: 12px; color: %s; line-height: 1.5;">%s</div>
+              </div>
+
+              <div>
+                <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px;">Top 5 profesionales de la semana</div>
+                %s
+              </div>
+            </div>
+            """.formatted(
+                m.activos7d().size(),
+                m.activos7d().isEmpty() ? "<em style='color:#aaa;'>(ninguno)</em>" : escape(String.join(", ", m.activos7d())),
+                m.inactivos7d().size(),
+                m.inactivos7d().isEmpty() ? "#16a34a" : "#dc2626",
+                m.inactivos7d().isEmpty() ? "✓ ninguno" : escape(String.join(", ", m.inactivos7d())),
+                topHtml
+            );
     }
 
     private static String escape(String s) {
