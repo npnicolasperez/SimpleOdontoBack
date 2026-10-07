@@ -5,6 +5,7 @@ import com.simpleodonto.estudio.dto.EstudioResponse;
 import com.simpleodonto.estudio.dto.EstudioUpdateRequest;
 import com.simpleodonto.estudio.service.EstudioService;
 import com.simpleodonto.profesional.domain.Profesional;
+import com.simpleodonto.shared.ImagenProcesador;
 import com.simpleodonto.shared.security.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +26,9 @@ import java.util.List;
 @RequiredArgsConstructor
 public class EstudioController {
 
-    private final EstudioService estudioService;
-    private final TokenService   tokenService;
+    private final EstudioService    estudioService;
+    private final TokenService      tokenService;
+    private final ImagenProcesador  imagenProcesador;
 
     @GetMapping
     public Page<EstudioResponse> listar(
@@ -55,7 +57,7 @@ public class EstudioController {
             @RequestParam("pacienteId")                            Long   pacienteId,
             HttpServletRequest request) throws IOException {
         Profesional profesional = tokenService.resolve(request);
-        return estudioService.crear(nombre, imagen.getContentType(), imagen.getBytes(),
+        return estudioService.crear(nombre, imagen.getContentType(), imagenProcesador.procesarSiEsImagen(imagen),
                 escala, pacienteId, profesional);
     }
 

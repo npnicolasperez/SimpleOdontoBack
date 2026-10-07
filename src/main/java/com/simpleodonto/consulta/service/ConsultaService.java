@@ -18,6 +18,7 @@ import com.simpleodonto.obrasocial.repository.ObraSocialRepository;
 import com.simpleodonto.paciente.domain.Paciente;
 import com.simpleodonto.paciente.repository.PacienteRepository;
 import com.simpleodonto.profesional.domain.Profesional;
+import com.simpleodonto.shared.ImagenProcesador;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
@@ -43,6 +44,7 @@ public class ConsultaService {
     private final ObraSocialRepository      obraSocialRepository;
     private final IngresoService            ingresoService;
     private final IngresoRepository         ingresoRepository;
+    private final ImagenProcesador          imagenProcesador;
 
     public ConsultaResponse obtener(Long consultaId, Profesional profesional) {
         Consulta consulta = consultaRepository.findByIdAndProfesionalId(consultaId, profesional.getId())
@@ -146,7 +148,7 @@ public class ConsultaService {
                     .consulta(consulta)
                     .nombre(archivo.getOriginalFilename())
                     .tipo(archivo.getContentType())
-                    .data(archivo.getBytes())
+                    .data(imagenProcesador.procesarSiEsImagen(archivo))
                     .build();
             ConsultaArchivo saved = consultaArchivoRepository.save(ca);
             return new ArchivoInfo(saved.getId(), saved.getNombre(), saved.getTipo());
